@@ -1,0 +1,225 @@
+# =============================================================================
+#  config.toml  —  user-editable pipeline settings (read by pipeline_config.jl)
+# =============================================================================
+#  This is the ONLY file you edit to drive a run.
+#  pipeline_config.jl reads these values and derives all paths/geometry from them.
+#
+#  Notes on types:
+#   • enums are strings here (e.g. optimizer = "grad"); Julia converts to :grad.
+#   • seed ranges are [lo, hi]  (e.g. [1, 10] means 1:10).
+#   • arrays are TOML arrays.
+# =============================================================================
+
+# --- run mode / optimizer ----------------------------------------------------
+pipeline_mode = "full"   # "full" | "lcurve"
+optimizer = "grad"   # "grad" | "sim_annealing"  (full mode only)
+start_stage = 0   # run-order index: -1 ask | 0 Stage 0 | 1 Stage 1 | 2 Stage 1.5 | 3 Stage 2 | 4 Stage 3 (viewers) | 5 Stage 4 (Python verifier only)
+
+# Where the optimizer scores homogeneity:
+#   "grid"  → dense Cartesian grid (∇B/Tikhonov term available; SA + viewers use this)
+#   "shell" → a single spherical shell at Rmax (harmonic field ⇒ exact range/ppm with
+#             far fewer points). Gradient optimizer + ring search only.
+eval_domain = "shell"
+# Where the shell-mode evaluation points come from:
+#   "measured"     → the raw measured points + measured |B| (NO interpolation). Use when
+#                    the scan already lies on the Rmax sphere — honest, real-data scoring.
+#   "sh_fibonacci" → evaluate the spherical-harmonic fit on shell_n_points uniform points
+#                    at Rmax (uniform coverage, but smoothed by the fit).
+shell_source = "measured"
+shell_n_points = 2000   # points on the Rmax shell when shell_source = "sh_fibonacci"
+
+# --- iteration identity ------------------------------------------------------
+iteration = "07102026_UCScanner_FirstShimming"
+iteration_number = 2   # engraved on insert labels
+measured_fieldmap_name = "07102026_UCScanner_FirstShim_2rings.csv"
+main_field_direction = "auto"   # "+x"|"-x"|"+y"|"-y"|"auto"  (auto detects from the measured field vector — Controlled scans only)
+
+# --- shared geometry (BOOST + insert generator) ------------------------------
+num_trays = 12
+mags_per_segment = 7
+shim_radius_mm = 231   # < 250 → "Ours" static insert; ≥ 250 → "Josh"
+angle_per_segment_deg = 20.64   # inter-magnet arc spacing = 2*(180 - 169.68)
+angular_offset_deg = 0
+
+# Axial tray geometry, measured from TRUE z = 0. The two ends are anchored
+# independently, because the bore need not be symmetric:
+#   back_tray_shift_mm   = |z| of tray +1  (+Z, the "Back - Wall" end)
+#   front_tray_shift_mm  = |z| of tray -1  (-Z, the "Front - Gaussmeter" end)
+# every tray further out steps by a constant tray_slot_spacing_mm:
+#   z(+n) = +(back_tray_shift_mm  + (n-1)*tray_slot_spacing_mm)
+#   z(-n) = -(front_tray_shift_mm + (n-1)*tray_slot_spacing_mm)
+# Tray 0 does not exist -- numbering starts at +-1 either side of z = 0.
+# (Replaces the old symmetric `half_shift_mm`: h with spacing s == front = back = s - h.
+#  10/10/10 below reproduces exactly what half_shift_mm = 0 used to give.)
+tray_slot_spacing_mm = 10
+front_tray_shift_mm = 0
+back_tray_shift_mm = 0
+
+positions_in_tray_occupied = [-2, 2]   # rings already filled
+positions_in_tray_new_wished = [-4, 4]
+Rmin = 0   # homogeneity shell (mm)
+Rmax = 100
+
+# --- shim magnet (physical properties) ---------------------------------------
+# Strength of ONE shim magnet, given as its REMANENCE Br (T) -- a material
+# property from the datasheet or your own measurement setup, independent of the
+# magnet's size -- together with its physical cube side length (mm). Converted
+# internally to the dipole moment the optimizer/kernels consume:
+#     mu [A*m^2] = Br[T] * side_m^3 / mu0,   mu0 = 4*pi*1e-7,   side_m = magnet_side_mm/1000
+# This replaced the older on-axis-field-at-1cm proxy (magnet_B1cm_mT) now that Br
+# is measured/calculated consistently for the actual 6x6x6 mm magnets.
+# ONE source of truth: the optimizer (setup.jl / setup_shell.jl), the ring search,
+# insert search, and BOTH Stage-3 viewers read this. Changing either value
+# invalidates the cached operators (GradOpt/operator_G.jld2, GradOpt/ring_operator.jld2)
+# -- re-run Stage 1 "Grad build+solve" (and the ring/insert search, if used).
+magnet_Br_T = 1.26
+magnet_side_mm = 6
+# Starting angle (deg) for every shim magnet: the SA's initial state and the angle
+# at which optim_grad.jl validates the linear operator G. The gradient optimizer
+# overrides it with grad_seeds random restarts, so it barely matters there.
+initial_angle_deg = 150
+
+# --- Stage 2 insert parameters (mm) ------------------------------------------
+mag_cover_thickness = 0.5
+extr_cover_thickness = 6
+lc = 0.5   # mesh characteristic length
+width_holes = 6.2
+letter_thickness = 1
+label_scale = 1.3   # overall size of the engraved iteration/insert/tray digits on the label
+Tray_short_radii = 223.144
+Tray_long_radii = 239.644
+
+# --- simulated-annealing search params ---------------------------------------
+lambda_weight = 100000   # 0 = pure range; >0 adds the gradient (Tikhonov) term
+test_ring_seq = [2, 3, 1, 4, 2, 3, 1, 4]
+SA_T0 = 1
+SA_alpha = 0.999
+SA_iters = 5000
+SA_restarts = 50
+SA_report_every = 100
+SA_step0 = 10
+SA_step_min = 0.5
+
+# objective knobs (shared)
+# (magnet strength lives in `magnet_Br_T` / `magnet_side_mm` above.)
+w = 1   # range-term weight: w*(max-min) + λ*sqrt(mean|∇B|²)
+mode = "RMS"   # "RMS" | "STDIV"
+
+# --- reproducibility / benchmarking ------------------------------------------
+rng_seed = 1234
+benchmark_seeds = [1, 10]   # benchmark.jl: ppm mean ± std
+grad_seeds = [1, 10]   # run_grad.jl: L-BFGS multi-start
+
+# --- gradient-optimizer objective --------------------------------------------
+grad_data_term = "variance"   # "variance" | "softrange"
+grad_softrange_beta = 200   # 1/mT, only used by softrange
+grad_lambda = 0   # Tikhonov weight on mean|∇B|²
+grad_lambda_sweep = [0, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100]
+
+# --- SA sweep (pipeline_mode = "lcurve") -------------------------------------
+# Single-parameter sweep: sweep_xkey is the swept param, sweep_values its values.
+# (Coupled multi-param sweeps remain an advanced override in pipeline_config.jl.)
+sweep_seeds = [1, 3]   # seeds per point → mean ± std
+sweep_xkey = "lambda"   # lambda | T0 | alpha | iters | restarts | step0 | step_min
+sweep_values = [10, 100, 1000, 10000, 100000, 1000000]
+
+# --- Stage 0 field adapter ---------------------------------------------------
+# Spherical-harmonic (SH) decomposition -- SH adapter (field_adapter = "spherical_harmonics")
+# and shell adapter (eval_domain = "shell"). Stage 0 always PRINTS the decomposition of the
+# measured field (per-degree strength + the sh_top_k largest coefficients) and writes it to
+# Optimizer_Output_per_Iteration/<ITER>/SHDecomposition/sh_decomposition.csv.
+# sh_select then chooses what the field map is BUILT from (kept columns are re-fitted to the data):
+#   "all"     every degree 0..sh_degree                       (default; unchanged behaviour)
+#   "first_n" degrees 0..sh_use_degree only                   (smooths away the high-order detail)
+#   "top_k"   the mean + the sh_top_k largest |a(n,m)| only   (keeps just the dominant harmonics)
+# With first_n / top_k the optimizer and viewers see the FILTERED field, and in shell mode
+# shell_source = "measured" then means "the measured points, with SH-filtered values".
+run_field_adapter = true
+field_adapter = "spherical_harmonics"   # "reshape" | "spherical_harmonics"
+sh_measured_unit_mm = 1
+sh_degree = 8
+sh_select = "all"   # which spherical-harmonic coefficients build the field map: "all" | "first_n" | "top_k" (see below)
+sh_use_degree = 4   # sh_select = "first_n": keep degrees 0..this (1 <= n <= sh_degree)
+sh_top_k = 5   # sh_select = "top_k": keep the mean + this many largest |a(n,m)| (n>=1). Also the length of the "largest coefficients" list printed at Stage 0
+sh_grid_n = 41   # SH viewer-grid points/axis over ±Rmax; 41 over ±100 mm = 5 mm spacing (was 21 = 10 mm)
+
+# --- ring search: find the best n rings to place -----------------------------
+ring_search_n = 2   # rings to place (method "paired": the TOTAL, must be even -> n/2 pairs)
+ring_search_n_max = 8   # hard cap on n
+ring_search_method = "paired"   # "greedy" | "exhaustive" | "paired" (only symmetric sets {-a,+a}, e.g. [-10,-5,5,10]; tries every choice of n/2 pairs)
+ring_search_range = [-19, 19]   # candidate tray range (integers), 0 excluded
+ring_search_step = 1   # candidate spacing (tray units)
+ring_search_min_sep = 2   # min axial gap (mm) between chosen rings
+ring_search_min_spots_between = 0   # min empty tray spots between rings (≤3 between ⇒ discarded)
+ring_search_max_combos = 300000   # exhaustive guard (refuses above this)
+ring_search_magnet_budget = 0   # 0 = ignore; else caps n by magnets available
+ring_search_apply = true   # write winning rings into positions_in_tray_new_wished
+
+# --- insert search: sequential PER-INSERT placement --------------------------
+# A finer granularity than the ring search above (which fills whole 84-magnet
+# rings). This places ONE insert at a time -- one tray at one ring, holding
+# mags_per_segment magnets -- choosing where AND its rotations, then freezes it,
+# folds its field into the base, and searches for the next against that. See
+# grad_optim/insert_search.jl. Writes a SPARSE shim CSV: run Stage 2 with
+# "Build STL only" afterwards.
+#
+# How many inserts: magnets_available / mags_per_segment, rounded DOWN. Every
+# insert is assumed completely full -- partially-filled inserts are never planned.
+magnets_available = 336   # total shim magnets on hand (336 / 7 = 48 full inserts)
+insert_search_range = [-20, 20]   # candidate ring range (integers), 0 excluded
+insert_search_step = 1   # candidate ring spacing (tray units)
+# Two inserts IN THE SAME TRAY must have AT LEAST this many empty ring slots
+# between them. Different trays are separate printed pieces -> unconstrained.
+insert_search_min_spots_between = 1
+insert_search_max_inserts = 0   # 0 = use the full magnet budget; else a hard cap
+insert_search_apply = true   # publish the shim CSV + record the rings used
+
+# --- OSII import (alternative Stage 1.5: OSII shim config CSV → shim CSV) ------
+# Converts an OSII magnet-placement file into our Stage-2 shim CSV, bypassing the
+# field map + optimizer (osii_to_shim.jl). Frame map: our X = their x, our Y =
+# their z, our Z = −their y; metres → mm. File lives in OSII_shimming_outputs_toconvert/.
+osii_input_name = "Tryout_angles_90deg.csv"
+osii_invert_angle = true   # OSII twists about +y; our pocket angle is about −y (our +Z) → flip sign
+osii_angle_offset_deg = 90   # OSII 0° (+z = our +y) → our 90°; tweak if a test print is rotated
+
+# --- Stage 3 viewers (need display + GPU; block until closed) ----------------
+run_3d_viewer = false
+run_slice_viewer = true
+
+# GIF export (both viewers have a "Save GIF" button) -- saved under
+# Optimizer_Output_per_Iteration/<ITER>/Viewers/
+viewer_gif_frames = 120   # frames per GIF; frames / fps = length in seconds
+viewer_gif_fps = 20
+viewer_gif_subdir = "Viewers"
+
+# Frame the Stage-3 viewers draw in: "scan" = the measured scan's own frame (field + magnets rotated
+# back from the optimizer frame by main_field_direction; field shown signed, e.g. negative for -y)
+# | "optimizer" = Stage 0's frame where B0 -> +y (what the shim CSV / printed trays use).
+viewer_frame = "scan"
+
+# Frame the shim CSV (the Stage 1.5 seam -> Stage 2 STLs, viewers, verifier) is WRITTEN in:
+# "scan" = rotated back from the optimizer frame into the measured scan's own frame by the scan's
+# B0 direction (positions and angles), right when the optimizer result is exported (export_csv.jl,
+# insert_search.jl) | "optimizer" = old behaviour (frame where B0 -> +y). Hand-made / OSII-import
+# CSVs are used exactly as written, in whatever frame this key declares.
+shim_csv_frame = "scan"
+
+# --- Stage 4: independent Python verifier (Shimming_verifier/, magpylib) -----
+# Re-computes the shimmed field from the shim magnets with a separate, self-contained
+# Python model and reports ppm + 2D projections + a 3D scene + spherical-harmonic
+# pyramids. It only needs: which measured field, which shim layout, what to run.
+# Magnet Br/side and the measurement unit are NOT repeated here -- it reuses
+# magnet_Br_T, magnet_side_mm and sh_measured_unit_mm. Needs a Python with
+# `pip install -r Shimming_verifier/requirements.txt`. Outputs go to
+# Optimizer_Output_per_Iteration/<ITER>/PythonVerifier/.
+run_python_verifier = true   # full run: also run Stage 4 at the end (or use start_stage = 5)
+verifier_python = "python"   # Python executable (full path if not on PATH)
+verifier_measurement = ""   # "" = measured_fieldmap_name; else a file in Measured_Field_Data_csv/ or an absolute path
+verifier_use_shim = true   # false = baseline only (measured field, no shim magnets)
+verifier_shim_csv = ""   # "" = this iteration's shim CSV; else a path (RingNumber seam CSV or X,Y,Z,Angle CSV, optimizer frame)
+verifier_make_2d = true   # 2D projections, with vs without shim
+verifier_make_3d = true   # interactive 3D scene (.html)
+verifier_make_sh = true   # spherical-harmonic pyramids
+verifier_sh_max_degree = 7
+verifier_show_figures = true   # open matplotlib windows at the end (blocks until closed)
+verifier_output_subdir = "PythonVerifier"

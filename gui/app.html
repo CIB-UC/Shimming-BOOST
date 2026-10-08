@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>BOOST — Shimming Pipeline</title>
+<style>
+  :root{
+    /* ---- BOOST palette v2 (light-green variant) ---- */
+    --bg:#eaf3df;         /* page background — soft green tint (from #59971F) */
+    --panel:#ffffff;      /* stage card background */
+    --sub:#f2f8ea;        /* nested sub-panel background — lighter green tint */
+    --edge:#c9dfb4;       /* borders/dividers — green-tinted */
+    --fg:#0d0a0b;         /* primary text */
+    --mut:#454955;        /* secondary/muted text */
+    --acc:#72b01d;        /* lighter highlight (badges, active tab, hover) */
+    --acc-dark:#59971f;   /* main accent — buttons, links, primary actions */
+    --acc-deep:#3f7d20;   /* deepest green — primary-button hover, strong emphasis */
+    --ok:#3f7d20;
+    --err:#c0392b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+  header{padding:10px 20px;border-bottom:1px solid var(--edge);display:flex;align-items:center;gap:14px;position:sticky;top:0;background:var(--panel);z-index:9}
+  header .logo{width:38px;height:38px;border-radius:9px;background:var(--acc-dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:0 0 auto;letter-spacing:-.02em}
+  header .titles{display:flex;flex-direction:column;line-height:1.25}
+  header h1{font-size:16px;margin:0;font-weight:700;color:var(--fg)}
+  header .subtitle{font-size:11.5px;color:var(--mut)}
+  .grow{flex:1}
+  button{background:#fff;color:var(--fg);border:1px solid var(--edge);border-radius:7px;padding:7px 12px;cursor:pointer;font-size:13px}
+  button:hover:not(:disabled){border-color:var(--acc)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.primary{background:var(--acc-dark);border-color:var(--acc-dark);color:#fff;font-weight:600}
+  button.primary:hover:not(:disabled){background:var(--acc-deep);border-color:var(--acc-deep)}
+  button.stop{background:var(--err);border-color:var(--err);color:#fff;font-weight:600}
+  main{max-width:1120px;margin:0 auto;padding:18px 20px 260px}
+  .stage{border:1px solid var(--edge);border-radius:12px;margin:0 0 16px;overflow:hidden;background:var(--panel)}
+  .stagehead{display:flex;align-items:center;gap:12px;padding:11px 16px;background:transparent;border-bottom:1px solid var(--edge)}
+  .stagehead .num{display:inline-flex;width:26px;height:26px;border-radius:50%;background:var(--acc);color:#0d0a0b;font-weight:700;align-items:center;justify-content:center;font-size:13px}
+  .stagehead h2{font-size:15px;margin:0;font-weight:600}
+  .stagebody{padding:14px 16px}
+  .cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .sub{background:var(--sub);border:1px solid var(--edge);border-radius:10px;padding:12px 14px}
+  .sub h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:0 0 9px}
+  .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .row label{flex:0 0 48%;color:var(--fg);font-weight:600;font-size:12.5px;word-break:break-word}
+  .row input,.row select{flex:1;background:#fff;color:var(--fg);border:1px solid var(--edge);border-radius:6px;padding:6px 8px;font:inherit;min-width:0}
+  .row input[type=checkbox]{flex:0 0 auto;width:18px;height:18px;accent-color:var(--acc-deep)}
+  .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
+  .tasks{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .tasks button.active{background:var(--acc);border-color:var(--acc);color:#0d0a0b;font-weight:600}
+  #toast{padding:8px 12px;border-radius:7px;font-size:13px;display:none;margin-bottom:14px}
+  #toast.ok{display:block;background:rgba(63,125,32,.12);color:var(--acc-deep);border:1px solid var(--acc-deep)}
+  #toast.err{display:block;background:rgba(192,57,43,.1);color:var(--err);border:1px solid var(--err)}
+  .hint{color:var(--mut);font-size:12px;margin:4px 0 0}
+  code{background:var(--sub);border:1px solid var(--edge);padding:1px 5px;border-radius:4px}
+  #runbar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--edge);padding:8px 20px 10px;z-index:8}
+  #runbar .top{display:flex;align-items:center;gap:10px;max-width:1120px;margin:0 auto 6px}
+  #log{max-width:1120px;margin:0 auto;background:#0d0a0b;border:1px solid var(--edge);border-radius:8px;padding:8px 12px;max-height:180px;min-height:52px;overflow:auto;white-space:pre-wrap;font:12px/1.4 ui-monospace,Consolas,monospace;color:#e9f2df}
+  .spin{color:var(--acc-deep)}
+  .fdesc{font-size:11px;color:var(--mut);margin:-1px 0 9px 0;line-height:1.35}
+  .iterband{background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:11px 16px;margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .iterband label{color:var(--mut);font-size:13px}
+  .iterband input{background:#fff;color:var(--fg);border:1px solid var(--edge);border-radius:6px;padding:7px 10px;font:inherit}
+  .iterband input.name{flex:1;min-width:200px;font-size:15px;font-weight:600}
+  table.ring{width:100%;border-collapse:collapse;font-size:13px}
+  table.ring th,table.ring td{text-align:left;padding:5px 9px;border-bottom:1px solid var(--edge)}
+  table.ring th{color:var(--mut);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+</style>
+</head>
+<body>
+<header>
+  <!-- Logo placeholder: swap this div for <img src="logo.png" ...> once the lab logo file is ready -->
+  <div class="logo">B</div>
+  <div class="titles">
+    <h1>BOOST — B0 Optimization Shimming Technique</h1>
+    <span class="subtitle">Low Field MRI Project UC</span>
+  </div>
+  <span id="iterlabel" class="hint"></span>
+  <span class="grow"></span>
+  <button id="reload">Reload</button>
+  <button id="save" class="primary">Save config</button>
+</header>
+
+<main>
+  <div id="toast"></div>
+
+  <!-- ITERATION (beginning) -->
+  <div class="iterband">
+    <label>Iteration name</label>
+    <input id="iter-top" class="iterbox name" placeholder="my_run"/>
+    <label>Label #</label>
+    <input id="iter-num" type="number" style="width:88px"/>
+  </div>
+
+  <!-- STAGE 0 -->
+  <section class="stage">
+    <div class="stagehead"><span class="num">0</span><h2>Field map</h2><span class="grow"></span>
+      <button id="run-stage0" class="primary runbtn">Prepare field map</button></div>
+    <div class="stagebody"><div class="cols">
+      <div class="sub"><h3>Measured data</h3>
+        <div class="row"><label>Use field map</label><select id="measured"></select></div>
+        <div class="row"><label>Import CSV (full path)</label><input id="importpath" placeholder="C:\path\to\scan.csv"/></div>
+        <div class="actions"><button id="importbtn" class="presetbtn">Import into data folder</button></div>
+        <p class="hint">Copies into <code>Measured_Field_Data_csv/</code>, then pick it above.</p>
+      </div>
+      <div class="sub"><h3>Geometry</h3>
+        <div class="row"><label>Preset</label><select id="geopreset"></select></div>
+        <div class="actions"><button class="presetbtn" data-apply="geometry">Apply preset</button><button class="presetbtn" data-saveas="geometry">Save as new…</button></div>
+        <div id="geofields" style="margin-top:8px"></div>
+      </div>
+      <div class="sub"><h3>Field adapter</h3><div id="adapterfields"></div></div>
+      <div class="sub"><h3>Shim magnets</h3><div id="magnetfields"></div>
+        <p class="hint" id="muhint"></p>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- STAGE 1 -->
+  <section class="stage">
+    <div class="stagehead"><span class="num">1</span><h2>Optimize</h2><span class="grow"></span>
+      <button data-run="eval" class="runbtn">Compare metrics</button>
+      <button id="run-stage1" class="primary runbtn">Run optimization</button></div>
+    <div class="stagebody">
+      <div class="tasks" id="tasks"></div>
+      <div class="cols"><div class="sub" style="grid-column:1/-1"><h3 id="taskname">Parameters</h3><div id="stage1params" class="cols"></div><p class="hint" id="taskhint"></p></div></div>
+    </div>
+  </section>
+
+  <!-- STAGE 1.5 — OSII IMPORT (alternative entry; no field map / optimizer) -->
+  <section class="stage">
+    <div class="stagehead"><span class="num">1.5</span><h2>OSII import</h2><span class="grow"></span>
+      <button id="run-osii" class="primary runbtn">Convert OSII → shim CSV</button></div>
+    <div class="stagebody"><div class="cols">
+      <div class="sub"><h3>OSII shim-config file</h3>
+        <div class="row"><label>Use OSII file</label><select id="osii"></select></div>
+        <div class="row"><label>Import CSV (full path)</label><input id="osii-importpath" placeholder="C:\path\to\osii_shim_config.csv"/></div>
+        <div class="actions"><button id="osii-importbtn" class="presetbtn">Import into OSII folder</button></div>
+        <p class="hint">Copies into <code>OSII_shimming_outputs_toconvert/</code>, then pick it above.</p>
+      </div>
+      <div class="sub"><h3>Transform</h3><div id="osiifields"></div>
+        <p class="hint">Skips Stage 0 &amp; 1: writes <code>&lt;iteration&gt;_shim.csv</code> straight from the OSII file (our X = their x, Y = their z, Z = −their y; metres→mm; angle inverted + offset). Then in Stage 2 use <b>Build STL only</b> — <i>not</i> Export + build STL (Export re-runs the optimizer seam and needs a solver result the OSII path doesn't create). Iteration name/number carry through to the final folder &amp; engraved inserts.</p>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- STAGE 2 -->
+  <section class="stage">
+    <div class="stagehead"><span class="num">2</span><h2>Inserts / STL</h2><span class="grow"></span>
+      <button data-run="stl" class="runbtn">Build STL only</button>
+      <button data-run="export,stl" class="primary runbtn">Export + build STL</button></div>
+    <div class="stagebody"><div class="cols">
+      <div class="sub"><h3>Setting</h3>
+        <div class="row"><label>Preset</label><select id="s2preset"></select></div>
+        <div class="actions"><button class="presetbtn" data-apply="stage2">Apply preset</button><button class="presetbtn" data-saveas="stage2">Save as new…</button></div>
+        <p class="hint">V1/V2 are starting points — edit and “Save as new…” to add your own.</p>
+      </div>
+      <div class="sub" style="grid-column:2/-1"><h3>Insert parameters (mm)</h3><div id="stage2fields" class="cols"></div></div>
+    </div></div>
+  </section>
+
+  <!-- STAGE 3 -->
+  <section class="stage">
+    <div class="stagehead"><span class="num">3</span><h2>Verify &amp; output</h2><span class="grow"></span>
+      <button data-run="viewer_3d" class="runbtn">Open 3D viewer</button>
+      <button data-run="viewer_slice" class="runbtn">Open slice viewer</button></div>
+    <div class="stagebody"><div class="cols">
+      <div class="sub"><h3>Viewers (full-run toggles)</h3><div id="viewerfields"></div>
+        <p class="hint">Both viewers also open with <b>no shim solution</b> — after Stage 0 alone they show the measured field (pre-shim) so you can inspect it before optimizing.</p>
+      </div>
+      <div class="sub"><h3>Open folder</h3>
+        <div class="actions">
+          <button data-open="final">Output (3D printing)</button>
+          <button data-open="optimizer">Optimizer output</button>
+          <button data-open="measured">Measured data</button>
+          <button data-open="root">Project root</button>
+        </div>
+      </div>
+      <div class="sub" style="grid-column:1/-1"><h3>Ring placement — where each printed ring goes</h3>
+        <div id="ringplacement"></div>
+        <p class="hint">Each <code>Ring_N</code> folder of inserts mounts at the axial slot below. “Trays filled” reads the shim CSV on disk, so a sparse layout (insert search / OSII import) shows exactly which trays carry magnets. Refreshes after each run.</p>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- STAGE 4 — independent Python (magpylib) verifier -->
+  <section class="stage">
+    <div class="stagehead"><span class="num">4</span><h2>Python verifier</h2><span class="grow"></span>
+      <button data-open="verifier">Open verifier output</button>
+      <button id="run-verify" data-run="verify_python" class="primary runbtn">Run verifier</button></div>
+    <div class="stagebody"><div class="cols">
+      <div class="sub"><h3>Which field</h3>
+        <div class="row"><label>verifier_measurement</label><select id="verifier-meas"></select></div>
+        <div class="fdesc">Measured field the shimmed result is compared against. Blank = the same scan as Stage 0.</div>
+        <p class="hint">Uses the same scan, magnet Br/side and coordinate unit as the rest of the pipeline &mdash; none of those are entered twice.</p>
+      </div>
+      <div class="sub"><h3>Which shim layout</h3><div id="verifiershim"></div>
+        <p class="hint">Default = this iteration&rsquo;s shim CSV (optimizer export, insert search or OSII import). Its ring numbers are converted to axial z, and rotated back into the scanner&rsquo;s frame if B0 isn&rsquo;t already along +y.</p>
+      </div>
+      <div class="sub"><h3>What to run</h3><div id="verifierrun"></div>
+        <p class="hint">Independent magpylib model (no shared code with the Julia kernels), so agreement with the optimizer&rsquo;s ppm is a real cross-check. Needs Python packages from <code>Shimming_verifier/requirements.txt</code>. Also runs at the end of a full run when <code>run_python_verifier</code> is on.</p>
+      </div>
+    </div></div>
+  </section>
+</main>
+
+<div id="runbar">
+  <div class="top"><strong>Run log</strong> <span id="runstatus" class="hint"></span><span class="grow"></span>
+    <button id="stopbtn" class="stop" disabled>Stop</button><button id="clearlog">Clear</button></div>
+  <pre id="log"></pre>
+</div>
+
+<script>
+const ENUMS={optimizer:["grad","sim_annealing"],pipeline_mode:["full","lcurve"],
+  field_adapter:["reshape","spherical_harmonics"],grad_data_term:["variance","softrange"],
+  main_field_direction:["+x","-x","+y","-y","auto"],mode:["RMS","STDIV"],
+  sweep_xkey:["lambda","T0","alpha","iters","restarts","step0","step_min"],
+  ring_search_method:["greedy","exhaustive","paired"],eval_domain:["grid","shell"],
+  shell_source:["measured","sh_fibonacci"],sh_select:["all","first_n","top_k"]};
+const GEO_KEYS=["num_trays","mags_per_segment","shim_radius_mm","angle_per_segment_deg","angular_offset_deg","tray_slot_spacing_mm","front_tray_shift_mm","back_tray_shift_mm","positions_in_tray_occupied","positions_in_tray_new_wished","Rmin","Rmax"];
+// Physical shim-magnet properties — own panel, since these feed the optimizer, the
+// ring search AND both Stage-3 viewers (they used to be hardcoded in all five files).
+const MAGNET_KEYS=["magnet_Br_T","magnet_side_mm","initial_angle_deg"];
+// Magnet strength is hardware, so a geometry preset saved from here carries it too.
+// (The shipped V1.1/V2.1 presets predate these keys and simply leave them alone.)
+const GEO_PRESET_KEYS=GEO_KEYS.concat(["magnet_Br_T","magnet_side_mm"]);
+const MU0=4*Math.PI*1e-7;   // μ[A·m²] = Br[T]·(side_mm·1e-3)³/μ0
+const STAGE2_KEYS=["mag_cover_thickness","extr_cover_thickness","lc","width_holes","letter_thickness","label_scale","Tray_short_radii","Tray_long_radii"];
+// a Stage-2 version also pins theta (a geometry key, edited in Stage 0) — so V1/V2
+// differ in radii AND inter-magnet angle. Applying a preset updates it in Geometry.
+const STAGE2_PRESET_KEYS=STAGE2_KEYS.concat(["angle_per_segment_deg","shim_radius_mm"]);
+const STAGE2_SHOW=["mag_cover_thickness","extr_cover_thickness","width_holes","letter_thickness","label_scale","Tray_short_radii","Tray_long_radii"]; // lc (mesh density) hidden
+const TASKS={
+  grad_solve:{label:"Grad build+solve",stages:"optim_grad,run_grad",opt:"grad",
+    params:c=>["grad_data_term",...(c.grad_data_term==="softrange"?["grad_softrange_beta"]:[]),"grad_lambda","grad_seeds"]},
+  grad_lcurve:{label:"Grad L-curve",stages:"optim_grad,grad_lcurve",opt:"grad",
+    params:c=>["grad_data_term",...(c.grad_data_term==="softrange"?["grad_softrange_beta"]:[]),"grad_lambda_sweep","grad_seeds"]},
+  sa_opt:{label:"SA optimize",stages:"sa",opt:"sim_annealing",
+    params:c=>["lambda_weight","test_ring_seq","SA_T0","SA_alpha","SA_iters","SA_restarts","SA_step0","SA_step_min","mode","w"]},
+  sa_lcurve:{label:"SA L-curve",stages:"sa_lcurve",opt:"sim_annealing",
+    params:c=>["sweep_xkey","sweep_values","sweep_seeds","SA_T0","SA_alpha","SA_iters","SA_restarts","SA_step0","SA_step_min"]},
+  ring_search:{label:"Ring search (best n)",stages:"ring_search",opt:"grad",
+    params:c=>["ring_search_n","ring_search_method","ring_search_range","ring_search_min_spots_between","ring_search_apply",
+               "grad_data_term",...(c.grad_data_term==="softrange"?["grad_softrange_beta"]:[])]},
+  insert_search:{label:"Insert search (per-slot)",stages:"insert_search",opt:"grad",
+    params:c=>["magnets_available","insert_search_range","insert_search_min_spots_between","insert_search_max_inserts","insert_search_apply",
+               "grad_data_term",...(c.grad_data_term==="softrange"?["grad_softrange_beta"]:[])]},
+};
+// one-line description shown under each editable field
+const DESC={
+  iteration:"Name for this run; sets the output folder.",
+  iteration_number:"Number engraved on the printed insert labels.",
+  num_trays:"How many trays (segments) around the bore.",
+  mags_per_segment:"Shim magnets per tray within each ring.",
+  shim_radius_mm:"Radius of the shim-magnet ring (mm).",
+  angle_per_segment_deg:"Angular span of the magnets within a tray (deg).",
+  angular_offset_deg:"Rotates all trays around the bore (deg).",
+  tray_slot_spacing_mm:"Axial gap between neighbouring trays (mm). Constant all the way out from z=0.",
+  front_tray_shift_mm:"Distance from true z=0 to tray −1, the FRONT (−Z, gaussmeter) end (mm).",
+  back_tray_shift_mm:"Distance from true z=0 to tray +1, the BACK (+Z, wall) end (mm).",
+  positions_in_tray_occupied:"Rings already filled with magnets (skipped).",
+  positions_in_tray_new_wished:"Ring (tray) positions to place magnets at.",
+  Rmin:"Inner radius of the scored homogeneity shell (mm).",
+  Rmax:"Outer radius of the scored homogeneity shell (mm).",
+  magnet_Br_T:"Remanence of ONE shim magnet (T) — a material property from the datasheet or your measurement setup, independent of size.",
+  magnet_side_mm:"Physical cube side length of ONE shim magnet (mm) — used with Br to get its dipole moment.",
+  initial_angle_deg:"Starting angle for every magnet (deg): the SA's start point and the angle the operator check uses. The gradient optimizer randomizes over grad_seeds instead.",
+  eval_domain:"Score on a dense grid, or a spherical shell at Rmax (grad + ring search).",
+  shell_source:"Raw measured points (no interpolation) or SH-fit resampled onto a uniform sphere.",
+  shell_n_points:"How many points to sample on the Rmax shell (sh_fibonacci only).",
+  run_field_adapter:"Rebuild the field map from the CSV before running.",
+  main_field_direction:"Lab-frame B0 direction (or 'auto' to detect from the scan).",
+  field_adapter:"How to turn the measured CSV into a grid.",
+  sh_measured_unit_mm:"Length unit of the measured coordinates (mm/step).",
+  sh_degree:"Max spherical-harmonic degree for the fit.",
+  sh_select:"Which SH coefficients build the field map: all degrees, only the first n degrees, or only the mean + the k largest coefficients (re-fitted to the data). Stage 0 always prints the decomposition too.",
+  sh_use_degree:"first_n: keep degrees 0..n only (1 \u2264 n \u2264 sh_degree) \u2014 smooths away high-order detail.",
+  sh_top_k:"top_k: keep the mean + this many largest |a(n,m)| (n \u2265 1). Also the length of the \u201clargest coefficients\u201d list in the Stage 0 log.",
+  sh_grid_n:"Viewer-grid points per axis (±Rmax). 41 over ±100mm = 5mm; 21 = 10mm.",
+  grad_data_term:"Minimize field spread (variance) or range (softrange).",
+  grad_softrange_beta:"Sharpness of the soft-range approximation.",
+  grad_lambda:"Weight of the field-smoothness (Tikhonov) term.",
+  grad_seeds:"Random restarts for the L-BFGS solve [lo, hi].",
+  grad_lambda_sweep:"List of Tikhonov weights to sweep.",
+  lambda_weight:"Weight of the gradient term in the SA cost.",
+  test_ring_seq:"Order the annealer optimizes the rings in.",
+  SA_T0:"Starting temperature of the annealer.",
+  SA_alpha:"Cooling rate per step (closer to 1 = slower).",
+  SA_iters:"Iterations per annealing restart.",
+  SA_restarts:"Number of independent annealing restarts.",
+  SA_step0:"Initial angle step size (deg).",
+  SA_step_min:"Smallest angle step size (deg).",
+  mode:"Objective formulation: RMS or std-deviation.",
+  w:"Weight of the field-range term in the cost.",
+  sweep_xkey:"Which SA parameter the L-curve sweeps.",
+  sweep_values:"Values to try for the swept parameter.",
+  sweep_seeds:"Random seeds per sweep point [lo, hi].",
+  ring_search_n:"How many rings to place. With method paired this is the TOTAL number of rings and must be even (n/2 pairs {−a, +a}).",
+  ring_search_method:"Greedy (fast), exhaustive (all combos) or paired (only symmetric ±a pairs, e.g. [-10,-5,5,10]; tries every choice of pairs).",
+  ring_search_range:"Candidate tray range to search [lo, hi].",
+  ring_search_min_spots_between:"Reject rings closer than this many tray spots.",
+  ring_search_apply:"Write the winning rings into the config.",
+  magnets_available:"Total shim magnets you have. Divided by mags_per_segment (rounded down) to get how many FULL inserts to place.",
+  insert_search_range:"Candidate ring range to search [lo, hi]; every tray of every ring in it is a candidate slot.",
+  insert_search_min_spots_between:"Minimum empty ring slots between two inserts IN THE SAME TRAY (fewer \u21d2 rejected). Different trays are unconstrained.",
+  insert_search_max_inserts:"Hard cap on inserts placed (0 = use the whole magnet budget).",
+  insert_search_apply:"Publish the sparse shim CSV to the Stage-2 seam and record the rings used.",
+  mag_cover_thickness:"Thickness of the magnet cover layer (mm).",
+  extr_cover_thickness:"Extra structural cover thickness (mm).",
+  width_holes:"Width of each magnet pocket (mm).",
+  letter_thickness:"Extrusion depth (mm) of the engraved iteration/insert/tray label on the printed part.",
+  label_scale:"Overall size of the engraved label's digits (iteration, insert position, tray) — bigger scale = bigger digits.",
+  Tray_short_radii:"Inner (short) radius of the static tray (mm).",
+  Tray_long_radii:"Outer (long) radius of the static tray (mm).",
+  run_3d_viewer:"Open the 3D magnet+field viewer after a full run.",
+  run_slice_viewer:"Open the 2D slice/profile viewer after a full run.",
+  run_python_verifier:"Also run the Python verifier at the end of a full pipeline run.",
+  verifier_python:"Python executable to use (full path if it isn't on PATH).",
+  verifier_use_shim:"Include the shim magnets. Off = baseline only (just the measured field).",
+  verifier_shim_csv:"Blank = this iteration's shim CSV. Or a path to a seam CSV (RingNumber) or an X,Y,Z,Angle CSV.",
+  verifier_make_2d:"2D projections of the field, with vs without the shim.",
+  verifier_make_3d:"Interactive 3D scene (.html): field point cloud + magnets.",
+  verifier_make_sh:"Spherical-harmonic coefficient pyramids: measured / shim / shimmed.",
+  verifier_sh_max_degree:"Highest spherical-harmonic degree n in the pyramids.",
+  verifier_show_figures:"Open the matplotlib windows at the end (blocks until you close them). Files are saved either way.",
+  osii_invert_angle:"Flip OSII rotation sign (their +y axial = our −y). Default on.",
+  osii_angle_offset_deg:"Added after inverting (deg). OSII 0°=+z=our +y → 90.",
+};
+
+let config={}, presets={geometry:{},stage2:{}}, running=false, stopReq=false;
+const state={task:"grad_solve"};
+
+function toast(m,k){const t=document.getElementById('toast');t.textContent=m;t.className=k;if(k==='ok')setTimeout(()=>t.className='',2600);}
+async function api(p,o){const r=await fetch(p,o);const j=await r.json().catch(()=>({}));if(!r.ok||j.error)throw new Error(j.error||('HTTP '+r.status));return j;}
+
+function inputFor(key,val){
+  let el;
+  if(ENUMS[key]){el=document.createElement('select');ENUMS[key].forEach(o=>{const op=document.createElement('option');op.value=op.textContent=o;if(o===val)op.selected=true;el.appendChild(op);});}
+  else{el=document.createElement('input');
+    if(typeof val==='boolean'){el.type='checkbox';el.checked=val;}
+    else if(Array.isArray(val)){el.type='text';el.value=JSON.stringify(val);}
+    else if(typeof val==='number'){el.type='number';el.step='any';el.value=val;}
+    else{el.type='text';el.value=val??'';}}
+  if(key==='field_adapter'||key==='grad_data_term'||key==='eval_domain'||key==='shell_source'||key==='verifier_use_shim'||key==='ring_search_method'||key==='sh_select') el.addEventListener('change',refresh);
+  return el;
+}
+function readInput(orig,el){
+  if(el.tagName==='SELECT')return el.value;
+  if(typeof orig==='boolean')return el.checked;
+  if(Array.isArray(orig))return JSON.parse(el.value);
+  if(typeof orig==='number')return Number(el.value);
+  return el.value;
+}
+function field(key){
+  const wrap=document.createElement('div');
+  const row=document.createElement('div');row.className='row';
+  const lab=document.createElement('label');lab.textContent=key;lab.title=key;
+  const el=inputFor(key,config[key]);el.dataset.key=key;el.id='f_'+key;
+  row.append(lab,el);wrap.appendChild(row);
+  if(DESC[key]){const d=document.createElement('div');d.className='fdesc';d.textContent=DESC[key];wrap.appendChild(d);}
+  return wrap;
+}
+// Live read-out of the dipole moment the optimizer will actually use, so the
+// entered Br/side and the A·m² in the logs are never a mystery.
+function renderMuHint(){
+  const el=document.getElementById('muhint');if(!el)return;
+  const br=Number(config.magnet_Br_T), side=Number(config.magnet_side_mm);
+  el.innerHTML=(isFinite(br)&&br>0&&isFinite(side)&&side>0)
+    ? 'Dipole moment <code>&mu; = '+(br*Math.pow(side*1e-3,3)/MU0).toPrecision(4)+' A&middot;m&sup2;</code>'
+      + ' &nbsp;(&mu; = B<sub>r</sub>&middot;a&sup3;/&mu;&#8320;, a = side length).'
+      + ' Used by the optimizer, ring search, insert search and both viewers.'
+      + ' <b>Changing either value invalidates the cached operator(s)</b> &mdash; re-run <i>Grad build+solve</i>.'
+    : 'Enter a positive remanence (T) and cube side length (mm).';
+}
+// Mirrors utils/pos_trays.jl ringpos_from_tray_mm — keep the two in step.
+//   z(+n) = +(back  + (n-1)*spacing)   → +Z "Back - Wall"
+//   z(-n) = -(front + (n-1)*spacing)   → -Z "Front - Gaussmeter"
+function ringZ(t){
+  const s=Number(config.tray_slot_spacing_mm), f=Number(config.front_tray_shift_mm), b=Number(config.back_tray_shift_mm);
+  const sp=isFinite(s)?s:10, fr=isFinite(f)?f:10, bk=isFinite(b)?b:10;
+  if(t>0)return bk+(t-1)*sp;
+  if(t<0)return -(fr+(-t-1)*sp);
+  return NaN;                       // tray 0 does not exist (pos_trays.jl errors on it)
+}
+// InsertPos -> the printed P/N sign token, matching make_label's engraved N/P
+// glyphs (utils/helping_functions_for_JIG.jl) and CSV_to_STL.jl's folder naming —
+// e.g. -7 -> "N07", +12 -> "P12".
+function insertPosLabel(t){
+  const n=Math.trunc(Number(t));
+  return (n<0?'N':'P')+String(Math.abs(n)).padStart(2,'0');
+}
+// placement: what the shim CSV on disk actually holds, per (ring, tray). Null until
+// /api/placement has answered; a ring-level run fills every tray, but an insert
+// search or an OSII import fills only some — the table must not imply a full ring.
+// placement.rings[].ring is the REAL InsertPos (e.g. -7), matching config's
+// positions_in_tray_new_wished values directly — NOT a 0-based sequential index,
+// so it must be looked up by that real value (t below), never by array position.
+let placement=null;
+function renderRingPlacement(){
+  const el=document.getElementById('ringplacement');const pos=config.positions_in_tray_new_wished;
+  if(!Array.isArray(pos)||!pos.length){el.innerHTML='<p class="hint">No rings set yet.</p>';return;}
+  const nt=Number(config.num_trays)||12, mps=Number(config.mags_per_segment)||7;
+  const byRing={}; if(placement&&placement.exists)placement.rings.forEach(r=>byRing[r.ring]=r);
+  const have=placement&&placement.exists;
+  let h='<table class="ring"><tr><th>Printed ring</th><th>Tray #</th><th>Axial slot</th><th>End</th>'
+       +(have?'<th>Trays filled</th><th>Magnets</th>':'')+'</tr>';
+  pos.forEach((t,i)=>{
+    const z=ringZ(t);
+    const end=t>0?'Back &ndash; Wall (+Z)':t<0?'Front &ndash; Gaussmeter (&minus;Z)':'<b style="color:var(--err)">invalid: tray 0</b>';
+    const zs=isFinite(z)?z.toFixed(1)+' mm':'&mdash;';
+    let extra='';
+    if(have){
+      const r=byRing[t];
+      if(!r) extra='<td colspan="2" style="color:var(--mut)">not in shim CSV</td>';
+      else{
+        const full=r.trays.length===nt;
+        const filledLabel=full?`all ${nt}`:`${r.trays.length} of ${nt} (tray ${r.trays.join(', ')})`;
+        extra=`<td>${filledLabel}</td>`
+             +`<td>${r.magnets}${full?'':` <span style="color:var(--mut)">/ ${nt*mps}</span>`}</td>`;
+      }
+    }
+    h+=`<tr><td>Ring_${insertPosLabel(t)}</td><td>${t}</td><td>${zs}</td><td>${end}</td>${extra}</tr>`;
+  });
+  h+='</table>';
+  if(have){
+    const tot=placement.magnets, ins=placement.rings.reduce((a,r)=>a+r.trays.length,0);
+    h+=`<p class="hint">Shim CSV on disk: <b>${tot}</b> magnets in <b>${ins}</b> insert(s) across <b>${placement.rings.length}</b> ring(s).</p>`;
+  } else h+='<p class="hint">No shim CSV yet &mdash; the columns above are the planned ring slots.</p>';
+  el.innerHTML=h;
+}
+function syncIter(v){
+  config.iteration=v;
+  document.querySelectorAll('.iterbox').forEach(b=>{if(b.value!==v)b.value=v;});
+  const l=document.getElementById('iterlabel');if(l)l.textContent='— '+v+' · optimizer: '+config.optimizer;
+}
+function fill(id,keys){const c=document.getElementById(id);c.innerHTML='';keys.forEach(k=>{if(k in config)c.appendChild(field(k));});}
+
+function collectInputs(strict){
+  document.querySelectorAll('[data-key]').forEach(el=>{
+    try{config[el.dataset.key]=readInput(config[el.dataset.key],el);}
+    catch(e){if(strict)throw new Error(el.dataset.key+': '+e.message);}
+  });
+  const me=document.getElementById('measured');
+  if(me&&me.value)config.measured_fieldmap_name=me.value.replace(/ \(missing\)$/,'');
+  const vm=document.getElementById('verifier-meas');
+  if(vm&&vm.options.length)config.verifier_measurement=vm.value.replace(/ \(missing\)$/,'');
+  const oe=document.getElementById('osii');
+  if(oe&&oe.value)config.osii_input_name=oe.value.replace(/ \(missing\)$/,'');
+  const it=document.getElementById('iter-top');if(it&&it.value.trim())config.iteration=it.value.trim();
+  const inum=document.getElementById('iter-num');if(inum&&inum.value!=='')config.iteration_number=Number(inum.value);
+}
+function refresh(){collectInputs(false);renderAll();}
+
+function renderTasks(){
+  const box=document.getElementById('tasks');box.innerHTML='';
+  const shell=config.eval_domain==='shell';
+  const ids=Object.keys(TASKS).filter(id=>!(shell&&TASKS[id].opt==='sim_annealing'));  // SA is grid-only
+  if(shell&&TASKS[state.task].opt==='sim_annealing') state.task='grad_solve';           // fall back off an SA task
+  for(const id of ids){
+    const t=TASKS[id];const b=document.createElement('button');b.textContent=t.label;b.className='taskbtn'+(id===state.task?' active':'');
+    b.onclick=()=>{collectInputs(false);state.task=id;config.optimizer=t.opt;renderAll();};
+    box.appendChild(b);
+  }
+  document.getElementById('taskname').textContent=TASKS[state.task].label+' — parameters'+(shell?'  (shell)':'');
+}
+// Insert search: show the budget arithmetic (magnets → full inserts) before running,
+// so an odd magnet count never turns into a surprise at the end of a run.
+// Paired ring search: how many ±a pairs exist in the range and how many combinations
+// that is — the exhaustive part is C(pairs, n/2), shown before the run.
+function pairedHint(){
+  const r=config.ring_search_range, step=Number(config.ring_search_step)||1, n=Number(config.ring_search_n);
+  if(!Array.isArray(r)||r.length!==2)return '';
+  const cand=new Set();for(let t=Number(r[0]);t<=Number(r[1]);t+=step)if(t!==0)cand.add(t);
+  let pairs=0;for(const t of cand)if(t>0&&cand.has(-t))pairs++;
+  if(!pairs)return '<b style="color:var(--err)">No tray has both +a and &minus;a in this range &mdash; use a range symmetric about 0.</b>';
+  if(!Number.isInteger(n)||n<2||n%2)return '<b style="color:var(--err)">Paired search needs an even ring_search_n (rings come in &plusmn;pairs); got '+n+'.</b>';
+  const m=n/2;let c=1;for(let i=1;i<=m;i++)c=c*(pairs-m+i)/i;
+  const mx=Number(config.ring_search_max_combos);
+  return '<b>'+m+'</b> pair'+(m===1?'':'s')+' (<b>'+n+'</b> rings) from <b>'+pairs+'</b> possible &plusmn;a pairs &rarr; <b>'+Math.round(c).toLocaleString()+'</b> combinations'
+    +(isFinite(mx)&&c>mx?' <b style="color:var(--err)">&mdash; exceeds ring_search_max_combos ('+mx+')</b>':'')
+    +'. Pairing is by tray number (an exact z-mirror only when front and back tray shifts are equal). Rings closer than the min-spots setting are skipped, so a pair with a=1 needs <code>ring_search_min_spots_between</code> &le; 1.';
+}
+function renderTaskHint(){
+  const th=document.getElementById('taskhint');if(!th)return;
+  if(state.task==='ring_search'){th.innerHTML=config.ring_search_method==='paired'?pairedHint():'';return;}
+  if(state.task!=='insert_search'){th.innerHTML='';return;}
+  const m=Number(config.magnets_available), mps=Number(config.mags_per_segment)||7;
+  if(!isFinite(m)||m<0){th.innerHTML='<b style="color:var(--err)">Enter a magnet count.</b>';return;}
+  const n=Math.floor(m/mps), left=m-n*mps;
+  th.innerHTML = n<1
+    ? '<b style="color:var(--err)">'+m+' magnets is fewer than one full insert ('+mps+').</b>'
+    : '<b>'+n+'</b> full insert'+(n===1?'':'s')+' of <b>'+mps+'</b> magnets'
+      + (left?(' &nbsp;(<b>'+left+'</b> left over, not placed &mdash; inserts are never partially filled)'):'')
+      + '. Places one insert at a time, freezing its angles before searching the next.'
+      + ' Writes a <b>sparse</b> shim CSV &rarr; afterwards use Stage 2 <b>&ldquo;Build STL only&rdquo;</b>.';
+}
+function renderAll(){
+  document.getElementById('iterlabel').textContent='— '+config.iteration+' · optimizer: '+config.optimizer;
+  fill('geofields',GEO_KEYS);
+  // Live-update the ring-placement table as the tray geometry is typed, so you can
+  // see where each printed ring lands before committing to a run.
+  ['tray_slot_spacing_mm','front_tray_shift_mm','back_tray_shift_mm','positions_in_tray_new_wished'].forEach(k=>{
+    const e=document.getElementById('f_'+k);
+    if(e)e.addEventListener('input',ev=>{try{config[k]=readInput(config[k],ev.target);renderRingPlacement();}catch(_){}});
+  });
+  const shell=config.eval_domain==='shell';
+  // SH selection: which coefficients build the field map (the top-k count also sizes the printed list)
+  const shSel=['sh_select',...(config.sh_select==='first_n'?['sh_use_degree']:[]),'sh_top_k'];
+  const ad=['eval_domain','run_field_adapter','main_field_direction'].concat(
+    shell?['shell_source',...(config.shell_source==='sh_fibonacci'?['shell_n_points']:[]),'sh_degree',...shSel,'sh_grid_n','sh_measured_unit_mm']
+         :['field_adapter',...(config.field_adapter==='spherical_harmonics'?['sh_measured_unit_mm','sh_degree',...shSel,'sh_grid_n']:[])]);
+  fill('adapterfields',ad);
+  fill('magnetfields',MAGNET_KEYS);
+  renderMuHint();
+  const mbr=document.getElementById('f_magnet_Br_T');
+  if(mbr)mbr.addEventListener('input',e=>{config.magnet_Br_T=Number(e.target.value);renderMuHint();});
+  const mside=document.getElementById('f_magnet_side_mm');
+  if(mside)mside.addEventListener('input',e=>{config.magnet_side_mm=Number(e.target.value);renderMuHint();});
+  renderTasks();
+  fill('stage1params',TASKS[state.task].params(config));
+  renderTaskHint();
+  const ma=document.getElementById('f_magnets_available');
+  if(ma)ma.addEventListener('input',e=>{config.magnets_available=Number(e.target.value);renderTaskHint();});
+  fill('osiifields',['osii_invert_angle','osii_angle_offset_deg']);
+  fill('stage2fields',STAGE2_SHOW);
+  fill('viewerfields',['run_3d_viewer','run_slice_viewer']);
+  fill('verifiershim',['verifier_use_shim',...(config.verifier_use_shim===false?[]:['verifier_shim_csv'])]);
+  fill('verifierrun',['verifier_make_2d','verifier_make_3d','verifier_make_sh','verifier_sh_max_degree','verifier_show_figures','run_python_verifier','verifier_python']);
+  document.querySelectorAll('.iterbox').forEach(b=>b.value=config.iteration??'');
+  const inum=document.getElementById('iter-num');if(inum)inum.value=config.iteration_number??'';
+  renderRingPlacement();
+  document.getElementById('run-stage0').textContent=
+    shell?'Prepare field map (shell)':config.field_adapter==='spherical_harmonics'?'Prepare field map (SH)':'Prepare field map (reshape)';
+}
+
+const PRESET_DEFAULT={stage2:"OSII V2.1 (PUC trays)"};   // default selection in the dropdown
+function populatePresets(){
+  for(const [sel,cat] of [['geopreset','geometry'],['s2preset','stage2']]){
+    const s=document.getElementById(sel);s.innerHTML='';
+    Object.keys(presets[cat]||{}).forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;s.appendChild(o);});
+    if(PRESET_DEFAULT[cat] && presets[cat] && (PRESET_DEFAULT[cat] in presets[cat])) s.value=PRESET_DEFAULT[cat];
+  }
+}
+function applyPreset(cat,selId){
+  const name=document.getElementById(selId).value;const p=(presets[cat]||{})[name];if(!p)return;
+  collectInputs(false);Object.assign(config,p);renderAll();toast('Applied '+name+' — Save or Run to apply','ok');
+}
+async function saveAsPreset(cat,keys){
+  const name=prompt('New preset name:');if(!name)return;
+  collectInputs(false);const values={};keys.forEach(k=>values[k]=config[k]);
+  try{const j=await api('/api/presets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:cat,name,values})});
+    presets=j.presets;populatePresets();document.getElementById(cat==='geometry'?'geopreset':'s2preset').value=name;toast('Saved preset “'+name+'”','ok');
+  }catch(e){toast('Preset save failed: '+e.message,'err');}
+}
+
+async function loadMeasured(){
+  const j=await api('/api/measured');const s=document.getElementById('measured');s.innerHTML='';
+  j.files.forEach(f=>{const o=document.createElement('option');o.value=o.textContent=f;if(f===j.selected)o.selected=true;s.appendChild(o);});
+  if(j.selected&&!j.files.includes(j.selected)){const o=document.createElement('option');o.value=o.textContent=j.selected+' (missing)';o.selected=true;s.appendChild(o);}
+  // Stage 4's own picker: blank = "same scan as Stage 0"
+  const v=document.getElementById('verifier-meas');
+  if(v){v.innerHTML='';const cur=(config.verifier_measurement||'');
+    const b=document.createElement('option');b.value='';b.textContent='(same as Stage 0 field map)';v.appendChild(b);
+    j.files.forEach(f=>{const o=document.createElement('option');o.value=o.textContent=f;if(f===cur)o.selected=true;v.appendChild(o);});
+    if(cur&&!j.files.includes(cur)){const o=document.createElement('option');o.value=cur;o.textContent=cur+' (missing)';o.selected=true;v.appendChild(o);}
+    if(!cur)b.selected=true;}
+}
+async function loadOsii(){
+  const s=document.getElementById('osii');if(!s)return;
+  const j=await api('/api/osii');s.innerHTML='';
+  j.files.forEach(f=>{const o=document.createElement('option');o.value=o.textContent=f;if(f===j.selected)o.selected=true;s.appendChild(o);});
+  if(j.selected&&!j.files.includes(j.selected)){const o=document.createElement('option');o.value=o.textContent=j.selected+' (missing)';o.selected=true;s.appendChild(o);}
+}
+async function loadPlacement(){
+  try{placement=await api('/api/placement');}catch(e){placement=null;}
+  renderRingPlacement();
+}
+async function loadAll(){
+  config=await api('/api/config');
+  try{presets=await api('/api/presets');}catch(e){presets={geometry:{},stage2:{}};}
+  populatePresets();renderAll();await loadMeasured();await loadOsii();await loadPlacement();
+}
+async function saveConfig(){
+  collectInputs(true);
+  const j=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
+  config=j.config;renderAll();await loadMeasured();await loadOsii();return j;
+}
+async function importCsv(){
+  const src=document.getElementById('importpath').value.trim();if(!src){toast('Enter a file path first','err');return;}
+  try{const j=await api('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({src})});
+    await loadMeasured();document.getElementById('measured').value=j.name;document.getElementById('importpath').value='';
+    toast('Imported '+j.name,'ok');
+  }catch(e){toast('Import failed: '+e.message,'err');}
+}
+async function importOsii(){
+  const src=document.getElementById('osii-importpath').value.trim();if(!src){toast('Enter a file path first','err');return;}
+  try{const j=await api('/api/import_osii',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({src})});
+    await loadOsii();document.getElementById('osii').value=j.name;document.getElementById('osii-importpath').value='';
+    toast('Imported '+j.name,'ok');
+  }catch(e){toast('Import failed: '+e.message,'err');}
+}
+async function openFolder(which){try{await api('/api/open_folder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({which})});}catch(e){toast('Open failed: '+e.message,'err');}}
+
+// --- running with live log + stop -------------------------------------------
+function setBusy(b){running=b;
+  document.querySelectorAll('.runbtn,.taskbtn,.presetbtn,#save,#reload').forEach(el=>el.disabled=b);
+  document.getElementById('stopbtn').disabled=!b;
+  document.getElementById('runstatus').innerHTML=b?'<span class="spin">● running…</span>':'';
+}
+function appendLog(t){const l=document.getElementById('log');l.textContent+=t;l.scrollTop=l.scrollHeight;}
+async function streamStage(stage){
+  appendLog('\n=== '+stage+' ===\n');
+  const resp=await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({stage})});
+  if(!resp.ok||!resp.body)throw new Error('run failed to start ('+resp.status+')');
+  const rd=resp.body.getReader(),dec=new TextDecoder();let buf='',code=0;
+  for(;;){const {value,done}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
+    let i;while((i=buf.indexOf('\n'))>=0){const line=buf.slice(0,i);buf=buf.slice(i+1);
+      if(line.startsWith('__EXIT__'))code=parseInt(line.slice(8).trim())||0;else appendLog(line+'\n');}}
+  if(buf)appendLog(buf);return code;
+}
+async function runSeq(csv){
+  if(running)return;stopReq=false;setBusy(true);
+  document.getElementById('runbar').scrollIntoView({block:'nearest'});
+  try{
+    await saveConfig();
+    document.getElementById('log').textContent='';
+    for(const st of csv.split(',')){
+      const code=await streamStage(st);
+      if(stopReq){appendLog('\n■ stopped by user\n');break;}
+      if(code!==0){appendLog('\n■ stopped ('+st+' exit '+code+')\n');break;}
+    }
+  }catch(e){appendLog('\n✘ '+e.message+'\n');toast(e.message,'err');}
+  finally{setBusy(false);try{await loadAll();}catch(_){}}   // reflect applied changes (e.g. ring search)
+}
+function runStage0(){runSeq(config.eval_domain==='shell'?'adapter_shell':config.field_adapter==='spherical_harmonics'?'adapter_sh':'adapter_reshape');}
+function runStage1(){collectInputs(false);config.optimizer=TASKS[state.task].opt;runSeq(TASKS[state.task].stages);}
+
+document.getElementById('save').onclick=()=>saveConfig().then(()=>toast('Saved config.toml','ok')).catch(e=>toast('Save failed: '+e.message,'err'));
+document.getElementById('reload').onclick=()=>loadAll().then(()=>toast('Reloaded','ok'));
+document.getElementById('importbtn').onclick=importCsv;
+document.getElementById('clearlog').onclick=()=>document.getElementById('log').textContent='';
+document.getElementById('stopbtn').onclick=async()=>{stopReq=true;document.getElementById('runstatus').innerHTML='<span class="spin">■ stopping…</span>';try{await api('/api/stop',{method:'POST'});}catch(e){}};
+document.getElementById('run-stage0').onclick=runStage0;
+document.getElementById('run-stage1').onclick=runStage1;
+document.getElementById('run-osii').onclick=()=>runSeq('osii');
+document.getElementById('osii-importbtn').onclick=importOsii;
+document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openFolder(b.dataset.open));
+document.querySelectorAll('[data-run]').forEach(b=>b.onclick=()=>runSeq(b.dataset.run));
+document.querySelectorAll('[data-apply]').forEach(b=>b.onclick=()=>applyPreset(b.dataset.apply,b.dataset.apply==='geometry'?'geopreset':'s2preset'));
+document.querySelectorAll('[data-saveas]').forEach(b=>b.onclick=()=>saveAsPreset(b.dataset.saveas,b.dataset.saveas==='geometry'?GEO_PRESET_KEYS:STAGE2_PRESET_KEYS));
+document.querySelectorAll('.iterbox').forEach(b=>b.addEventListener('input',e=>syncIter(e.target.value)));
+document.getElementById('iter-num').addEventListener('input',e=>{if(e.target.value!=='')config.iteration_number=Number(e.target.value);});
+loadAll().catch(e=>toast('Load failed: '+e.message,'err'));
+</script>
+</body>
+</html>

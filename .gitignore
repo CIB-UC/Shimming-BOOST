@@ -1,0 +1,15 @@
+# --- generated / regenerable outputs (can be many MB; rebuilt by the pipeline) ---
+Optimizer_Output_per_Iteration/
+Final_3D_printing_outputs_per_Iteration/
+Interpolated_Field_Data_jld2/
+Shimming_verifier/output/
+*.jld2
+
+# --- Python / editor / OS noise ---
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

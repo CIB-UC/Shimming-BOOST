@@ -1,0 +1,99 @@
+{
+  "geometry": {
+    "OSII V1.1": {
+      "num_trays": 12,
+      "mags_per_segment": 7,
+      "shim_radius_mm": 277.0,
+      "angle_per_segment_deg": 18.0,
+      "angular_offset_deg": 0.0,
+      "tray_slot_spacing_mm": 10.0,
+      "front_tray_shift_mm": 10.0,
+      "back_tray_shift_mm": 10.0,
+      "positions_in_tray_occupied": [],
+      "positions_in_tray_new_wished": [
+        -14,
+        -6,
+        6,
+        14
+      ],
+      "Rmin": 0.0,
+      "Rmax": 100.0
+    },
+    "OSII V2.1 (PUC trays)": {
+      "num_trays": 12,
+      "mags_per_segment": 7,
+      "shim_radius_mm": 231.0,
+      "angle_per_segment_deg": 20.64,
+      "angular_offset_deg": 0.0,
+      "tray_slot_spacing_mm": 10.0,
+      "front_tray_shift_mm": 10.0,
+      "back_tray_shift_mm": 10.0,
+      "positions_in_tray_occupied": [],
+      "positions_in_tray_new_wished": [
+        -14,
+        -6,
+        6,
+        14
+      ],
+      "Rmin": 0.0,
+      "Rmax": 100.0
+    },
+    "OSII V2 Corrected": {
+      "num_trays": 12,
+      "mags_per_segment": 7,
+      "shim_radius_mm": 231,
+      "angle_per_segment_deg": 20.64,
+      "angular_offset_deg": 0,
+      "tray_slot_spacing_mm": 10,
+      "front_tray_shift_mm": 0,
+      "back_tray_shift_mm": 0,
+      "positions_in_tray_occupied": [],
+      "positions_in_tray_new_wished": [
+        -14,
+        -6,
+        6,
+        14
+      ],
+      "Rmin": 0,
+      "Rmax": 100,
+      "magnet_Br_T": 1.26,
+      "magnet_side_mm": 6
+    }
+  },
+  "stage2": {
+    "OSII V1.1": {
+      "mag_cover_thickness": 0.5,
+      "extr_cover_thickness": 6,
+      "lc": 0.5,
+      "width_holes": 6.3,
+      "letter_thickness": 1.0,
+      "Tray_short_radii": 269.0,
+      "Tray_long_radii": 285.6,
+      "angle_per_segment_deg": 18.0,
+      "shim_radius_mm": 277.0
+    },
+    "OSII V2.1 (PUC trays)": {
+      "mag_cover_thickness": 0.5,
+      "extr_cover_thickness": 6,
+      "lc": 0.5,
+      "width_holes": 6.3,
+      "letter_thickness": 1.0,
+      "Tray_short_radii": 223.144,
+      "Tray_long_radii": 239.644,
+      "angle_per_segment_deg": 20.64,
+      "shim_radius_mm": 231.0
+    },
+    "OSII V2 Corrected": {
+      "mag_cover_thickness": 0.5,
+      "extr_cover_thickness": 6,
+      "lc": 0.5,
+      "width_holes": 6.2,
+      "letter_thickness": 1,
+      "label_scale": 1.3,
+      "Tray_short_radii": 223.144,
+      "Tray_long_radii": 239.644,
+      "angle_per_segment_deg": 20.64,
+      "shim_radius_mm": 231
+    }
+  }
+}
