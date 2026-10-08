@@ -6,12 +6,12 @@
 # mutually-incompatible runtimes never share a process:
 #   Stage 0    Field_data_file_adapter.jl   Measured CSV → Field .jld2
 #   Stage 1    optimizer (config `optimizer`):
-#                :sim_annealing → sim_annealing_optim/run_optim.jl  (CUDA + GLMakie)
-#                :grad          → grad_optim/optim_grad.jl (build G) → run_grad.jl (L-BFGS)
+#                :sim_annealing → stages/stage1_optimize/sim_annealing_optim/run_optim.jl  (CUDA + GLMakie)
+#                :grad          → stages/stage1_optimize/grad_optim/optim_grad.jl (build G) → run_grad.jl (L-BFGS)
 #   Stage 1.5  export_csv.jl   result jld2 → shim CSV  (CUDA, reuses setup.jl)
 #   Stage 2    CSV_to_STL.jl   shim CSV → per-tray STL/STEP  (Gmsh)
 #   Stage 3    Julia viewers   (config run_3d_viewer / run_slice_viewer)
-#   Stage 4    python_verifier.jl  independent magpylib check (Shimming_verifier/, Python)
+#   Stage 4    python_verifier.jl  independent magpylib check (stages/stage4_verifier/Shimming_verifier/, Python)
 #              — config run_python_verifier, or start_stage = 5 to run it alone
 #
 # Each stage reads everything (iteration name, paths, geometry) from
@@ -27,14 +27,16 @@ const JULIA = Base.julia_cmd()  # same julia executable + flags running this scr
 # --- Stage 0 script selection (config: field_adapter) -------------------------
 # :reshape              → Field_data_file_adapter.jl   (complete regular grid)
 # :spherical_harmonics  → Field_data_SH_interpolator.jl (scattered/shell scan)
+S0(f) = joinpath("stages", "stage0_field", f)         # script paths are relative to ROOT
+S1(parts...) = joinpath("stages", "stage1_optimize", parts...)
 const STAGE0_SCRIPTS = Dict(
-    :reshape             => "Field_data_file_adapter.jl",
-    :spherical_harmonics => "Field_data_SH_interpolator.jl",
+    :reshape             => S0("Field_data_file_adapter.jl"),
+    :spherical_harmonics => S0("Field_data_SH_interpolator.jl"),
 )
 @assert haskey(STAGE0_SCRIPTS, field_adapter) "field_adapter = $(field_adapter) is invalid; use :reshape or :spherical_harmonics."
 # eval_domain = :shell overrides the Stage-0 script (shell adapter handles either
 # input) and changes the Stage-1 input file. Shell mode is gradient + ring search.
-const stage0_script = eval_domain === :shell ? "Field_data_shell.jl" : STAGE0_SCRIPTS[field_adapter]
+const stage0_script = eval_domain === :shell ? S0("Field_data_shell.jl") : STAGE0_SCRIPTS[field_adapter]
 const stage0_title  = eval_domain === :shell ? "Stage 0   Measured CSV → shell jld2  (shell)" :
                                                "Stage 0   Measured CSV → interpolated jld2  ($(field_adapter))"
 const stage1_input  = eval_domain === :shell ? shell_fieldmap_path : fieldmap_path
@@ -106,7 +108,7 @@ if pipeline_mode == "lcurve"
         need(fieldmap_path, "field map (Stage 0 output)")
     end
     sweep_csv = joinpath(lcurve_dir, "sweep_$(sweep_xkey).csv")
-    run_stage("Sweep   $(sweep_xkey) (Stage 1 only, SA)", joinpath("sim_annealing_optim", "run_lcurve.jl"); expect_file = sweep_csv)
+    run_stage("Sweep   $(sweep_xkey) (Stage 1 only, SA)", S1("sim_annealing_optim", "run_lcurve.jl"); expect_file = sweep_csv)
     println("\n", "#"^72)
     println("#  SWEEP FINISHED  ✓   $(sweep_xkey)   iteration: ", ITERATION)
     println("#"^72)
@@ -161,18 +163,18 @@ end
 
 if start <= 1
     if optimizer == :sim_annealing
-        run_stage("Stage 1   SA optimizer", joinpath("sim_annealing_optim", "run_optim.jl");
+        run_stage("Stage 1   SA optimizer", S1("sim_annealing_optim", "run_optim.jl");
                   expect_file = optimizer_result_path)
     else  # :grad — two steps: build/cache G, then L-BFGS variance minimization
         operator_G = joinpath(optimizer_iter_dir, "GradOpt", "operator_G.jld2")
-        run_stage("Stage 1a  Build linear operator G", joinpath("grad_optim", "optim_grad.jl");
+        run_stage("Stage 1a  Build linear operator G", S1("grad_optim", "optim_grad.jl");
                   expect_file = operator_G)
-        run_stage("Stage 1b  L-BFGS variance min",     joinpath("grad_optim", "run_grad.jl");
+        run_stage("Stage 1b  L-BFGS variance min",     S1("grad_optim", "run_grad.jl");
                   expect_file = optimizer_result_path)
     end
 end
-start <= 2 && run_stage("Stage 1.5 Export shim CSV",        "export_csv.jl"; expect_file = shim_csv_path)
-start <= 3 && run_stage("Stage 2   CSV → per-tray STL/STEP", "CSV_to_STL.jl")
+start <= 2 && run_stage("Stage 1.5 Export shim CSV",        joinpath("stages", "stage1_5_export", "export_csv.jl"); expect_file = shim_csv_path)
+start <= 3 && run_stage("Stage 2   CSV → per-tray STL/STEP", joinpath("stages", "stage2_stl", "CSV_to_STL.jl"))
 
 nstl = count_stls(final_iteration_dir)
 start <= 3 && nstl == 0 && error("Stage 2 produced no .stl files under: $final_iteration_dir")
@@ -197,8 +199,8 @@ end
 # (fieldmap_path) for exactly this, so the viewers work in either domain.
 # (start = 5 means "Python verifier only", so the Julia viewers are skipped.)
 if start <= 4
-    run_3d_viewer    && run_stage("Stage 3   3D shimming-magnets viewer", "Shimming_magnets_visualizer.jl")
-    run_slice_viewer && run_stage("Stage 3   Field slice & line viewer",  "field_slice_viewer.jl")
+    run_3d_viewer    && run_stage("Stage 3   3D shimming-magnets viewer", joinpath("stages", "stage3_viewers", "Shimming_magnets_visualizer.jl"))
+    run_slice_viewer && run_stage("Stage 3   Field slice & line viewer",  joinpath("stages", "stage3_viewers", "field_slice_viewer.jl"))
     (run_3d_viewer || run_slice_viewer) ||
         println("\n(Stage 3 viewers skipped — enable run_3d_viewer / run_slice_viewer in pipeline_config.jl.)")
 end
@@ -207,7 +209,7 @@ end
 # Separate runtime, needs no GPU or field map: only the measured CSV + the shim CSV.
 # Runs when enabled in config (run_python_verifier) or when started at option 5 (Stage 4 only).
 if run_python_verifier || start == 5
-    run_stage("Stage 4   Python (magpylib) verifier", "python_verifier.jl")
+    run_stage("Stage 4   Python (magpylib) verifier", joinpath("stages", "stage4_verifier", "python_verifier.jl"))
 else
     println("\n(Stage 4 Python verifier skipped — set run_python_verifier = true in config.toml, or start_stage = 5.)")
 end

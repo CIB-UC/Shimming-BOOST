@@ -8,7 +8,7 @@
 #   GET  /api/measured      → measured CSVs + the currently selected one
 #   POST /api/import        → {src}   copy a CSV into the data folder
 #   GET  /api/osii          → OSII shim-config CSVs + the currently selected one
-#   POST /api/import_osii   → {src}   copy an OSII CSV into OSII_shimming_outputs_toconvert/
+#   POST /api/import_osii   → {src}   copy an OSII CSV into data/inputs/OSII_shimming_outputs_toconvert/
 #   POST /api/open_folder   → {which} open output/measured/root folder in the OS
 #   POST /api/run           → {stage} run a stage, streaming its log line-by-line
 #

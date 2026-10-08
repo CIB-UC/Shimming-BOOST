@@ -102,7 +102,7 @@
         <div class="row"><label>Use field map</label><select id="measured"></select></div>
         <div class="row"><label>Import CSV (full path)</label><input id="importpath" placeholder="C:\path\to\scan.csv"/></div>
         <div class="actions"><button id="importbtn" class="presetbtn">Import into data folder</button></div>
-        <p class="hint">Copies into <code>Measured_Field_Data_csv/</code>, then pick it above.</p>
+        <p class="hint">Copies into <code>data/inputs/Measured_Field_Data_csv/</code>, then pick it above.</p>
       </div>
       <div class="sub"><h3>Geometry</h3>
         <div class="row"><label>Preset</label><select id="geopreset"></select></div>
@@ -136,7 +136,7 @@
         <div class="row"><label>Use OSII file</label><select id="osii"></select></div>
         <div class="row"><label>Import CSV (full path)</label><input id="osii-importpath" placeholder="C:\path\to\osii_shim_config.csv"/></div>
         <div class="actions"><button id="osii-importbtn" class="presetbtn">Import into OSII folder</button></div>
-        <p class="hint">Copies into <code>OSII_shimming_outputs_toconvert/</code>, then pick it above.</p>
+        <p class="hint">Copies into <code>data/inputs/OSII_shimming_outputs_toconvert/</code>, then pick it above.</p>
       </div>
       <div class="sub"><h3>Transform</h3><div id="osiifields"></div>
         <p class="hint">Skips Stage 0 &amp; 1: writes <code>&lt;iteration&gt;_shim.csv</code> straight from the OSII file (our X = their x, Y = their z, Z = −their y; metres→mm; angle inverted + offset). Then in Stage 2 use <b>Build STL only</b> — <i>not</i> Export + build STL (Export re-runs the optimizer seam and needs a solver result the OSII path doesn't create). Iteration name/number carry through to the final folder &amp; engraved inserts.</p>

@@ -1,8 +1,8 @@
 # --- generated / regenerable outputs (can be many MB; rebuilt by the pipeline) ---
-Optimizer_Output_per_Iteration/
-Final_3D_printing_outputs_per_Iteration/
-Interpolated_Field_Data_jld2/
-Shimming_verifier/output/
+data/outputs/
+# (data/outputs/ covers Optimizer_Output_per_Iteration/ and Final_3D_printing_outputs_per_Iteration/)
+data/cache/
+stages/stage4_verifier/Shimming_verifier/output/
 *.jld2
 
 # --- Python / editor / OS noise ---

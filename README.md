@@ -37,7 +37,7 @@ analytic gradient. A gradient method (L-BFGS) therefore finds the **global**
 optimum in seconds — and shows that the remaining inhomogeneity is a **hardware
 limit**, not an optimizer limit. The lever from here is physical: more / stronger /
 closer shim magnets, or more rings. (Full derivation + code walkthrough:
-`GRAD_OPTIMIZATION.md`.)
+`docs/GRAD_OPTIMIZATION.md`.)
 
 **Three headline capabilities beyond "solve for the angles":**
 - **Ring search** — instead of telling it where to put rings, ask it to *find* the
@@ -62,7 +62,7 @@ julia install_deps.jl        # once — pins the project (CUDA, GLMakie, Gmsh, O
 julia gui/server.jl          # opens http://localhost:8010
 
 # Option B — terminal, one config-driven run
-julia run_pipeline.jl        # runs Stage 0→1→1.5→2→viewers per config.toml
+julia run_pipeline.jl        # runs Stage 0→1→1.5→2→3 (viewers)→4 per config.toml
 ```
 
 Needs an NVIDIA GPU (CUDA) for Stage 1 and the viewers. Everything is driven by
@@ -78,7 +78,7 @@ so nothing can drift apart.
 | 1.5 | `export_csv.jl` | optimizer result → shim CSV (`X, Y, RingNumber, Angle`; `RingNumber` = real InsertPos) — the seam |
 | 2 | `CSV_to_STL.jl` (Gmsh) | shim CSV → per-tray STL + STEP, + the static insert |
 | 3 | `Shimming_magnets_visualizer.jl`, `field_slice_viewer.jl` | 3D magnet/field view, 2D slice + profile; each has a "Save GIF" button |
-| 4 | `python_verifier.jl` → `Shimming_verifier/run_verifier.py` | independent **Python/magpylib** re-computation of the shimmed field: ppm, 2D projections, 3D scene, spherical-harmonic pyramids |
+| 4 | `python_verifier.jl` → `stages/stage4_verifier/Shimming_verifier/run_verifier.py` | independent **Python/magpylib** re-computation of the shimmed field: ppm, 2D projections, 3D scene, spherical-harmonic pyramids |
 
 `run_pipeline.jl` chains them as separate subprocesses (so CUDA/GLMakie and Gmsh
 never share a process), checks each exit code + output, and stops at the first
@@ -120,12 +120,12 @@ cross-check of the operator `G` (reference run: optimizer predicted 9483 ppm, ve
   +x / −x / −y scans, which reproduce the +y result exactly. **Now** (`shim_csv_frame = "scan"`, the
   default) the seam CSV is already in the scan frame, so `python_verifier.jl` passes `--shim-frame lab`
   (CSV as written); with `"optimizer"` it still passes `--shim-frame optimizer`.
-- **Outputs** → `Optimizer_Output_per_Iteration/<ITER>/PythonVerifier/`
+- **Outputs** → `data/outputs/Optimizer_Output_per_Iteration/<ITER>/PythonVerifier/`
   (`comparison_2d.png`, `scene_3d.html`, `sh_pyramid.png`, plus the derived shim input).
-- **Running it** — GUI Stage 4 "Run verifier"; `julia python_verifier.jl`;
+- **Running it** — GUI Stage 4 "Run verifier"; `julia stages/stage4_verifier/python_verifier.jl`;
   `start_stage = 5` (verifier only); or `run_python_verifier = true` to append it to a
   full run. Misalignment-study knobs (remanence spread, measurement/magnet shifts) exist
-  on the CLI (`python Shimming_verifier/run_verifier.py --help`) but default to 0.
+  on the CLI (`stages/stage4_verifier/python Shimming_verifier/run_verifier.py --help`) but default to 0.
 
 ### Stage 0 — reading the measurement
 
@@ -156,7 +156,7 @@ Three Stage-0 adapters consume that:
 adapters already fit `B ≈ Σ a_{n,m}(r/Rn)^n Y_{n,m}` (degree `sh_degree`). Stage 0 now
 always **prints the decomposition** — mean field, per-degree strength, and the `sh_top_k`
 (default 5) largest `|a_{n,m}|` with `n ≥ 1` and their share of the energy — and writes every
-coefficient to `Optimizer_Output_per_Iteration/<ITER>/SHDecomposition/sh_decomposition.csv`
+coefficient to `data/outputs/Optimizer_Output_per_Iteration/<ITER>/SHDecomposition/sh_decomposition.csv`
 (`n, m, a_full, a_used, rank, kept`). `sh_select` then chooses what the **field map is built
 from** (kept columns are *re-fitted* to the data, not just truncated):
 
@@ -244,7 +244,7 @@ cached operator `operator_G.jld2`:
   `grad_lambda`.
 
 Full deep-dive (every function + the math + how L-BFGS solves it):
-**`GRAD_OPTIMIZATION.md`**.
+**`docs/GRAD_OPTIMIZATION.md`**.
 
 **Shim-magnet strength.** Two numbers, `magnet_Br_T` + `magnet_side_mm` in
 `config.toml`: the magnet's **remanence** Br (T, a material property from the
@@ -364,7 +364,7 @@ convention of small local helpers over a shared-utils import for this kind of th
   `record` binding and the unqualified name is ambiguous once both packages are
   loaded. Config: `viewer_gif_frames` (frames/GIF), `viewer_gif_fps`, and
   `viewer_gif_subdir` (default `"Viewers"`, saved under
-  `Optimizer_Output_per_Iteration/<ITER>/Viewers/`); length in seconds =
+  `data/outputs/Optimizer_Output_per_Iteration/<ITER>/Viewers/`); length in seconds =
   `viewer_gif_frames / viewer_gif_fps`.
 
 ### Configuration (`config.toml`)
@@ -412,61 +412,67 @@ light-green themed palette (`--bg`/`--acc`/etc. in `app.html`'s `<style>`).
 ### Repository layout
 
 ```
-config.toml                     ← edit this (or use the GUI)
-pipeline_config.jl              ← reads config.toml, derives paths + geometry
-setup.jl / setup_shell.jl       ← evaluation context (grid mesh / shell points) + magnet positions
-run_pipeline.jl                 ← orchestrator (Stage 0→1→1.5→2→4)
-install_deps.jl                 ← pins the Julia project
+config.toml  Project.toml  Manifest.toml  pipeline_config.jl   ← stay at the root
+    config.toml        ← edit this (or use the GUI)
+    pipeline_config.jl ← reads config.toml, derives paths + geometry
+run_pipeline.jl        ← orchestrator (Stage 0→1→1.5→2→3→4)
+install_deps.jl        ← pins the Julia project
+README.md              ← this file (the other docs are in docs/)
 
-Field_data_file_adapter.jl      ← Stage 0 (regular grid → grid)
-Field_data_SH_interpolator.jl   ← Stage 0 (shell scan → grid, SH fit)
-Field_data_shell.jl             ← Stage 0 (any scan → shell at Rmax, SH fit; + grid for viewers)
-export_csv.jl                   ← Stage 1.5 (optimizer result → shim CSV; honours final_state)
-osii_to_shim.jl                 ← Stage 1.5 ALT (OSII layout → shim CSV; skips Stages 0–1)
-CSV_to_STL.jl                   ← Stage 2 (Gmsh geometry)
-Shimming_magnets_visualizer.jl  ← Stage 3 (3D)   field_slice_viewer.jl ← Stage 3 (slice)
-                                   (both run field-only when no shim CSV exists)
-python_verifier.jl              ← Stage 4 (adapter; launches Shimming_verifier/run_verifier.py)
-make_halbach_ring_csv.py        ← test tool: Halbach-dipole "bits" shim CSV (see below)
+docs/    GRAD_OPTIMIZATION.md  USER_GUIDE.md  HANDOFF.md
 
-kernels/   f_kernel.jl (field), op_kernel.jl (SA mutation)
-utils/     read_measured, sh_select, grid_utils, pos_trays, wrap, ppm_report, imanes,
-           helping_functions_for_JIG, verify_solution, eval_metrics, viewer_frame
-sim_annealing_optim/  operation.jl, run_optim.jl, run_lcurve.jl, benchmark.jl
-grad_optim/           grad_math.jl, grad_core.jl, optim_grad.jl, run_grad.jl,
-                      run_grad_lcurve.jl, ring_search.jl, insert_search.jl
-gui/                  backend.jl, server.jl, app.html, presets.json
-Shimming_verifier/    STAGE 4, standalone Python (magpylib): main.py, run_verifier.py,
-                      measurement_io, shim_magnets, field_analysis, viewer_2d/3d, sh_pyramid,
-                      requirements.txt (+ its own Field_measurements/, Shimming_magnets/, output/)
+stages/
+  stage0_field/      Field_data_file_adapter.jl    (regular grid → grid)
+                     Field_data_SH_interpolator.jl (shell scan → grid, SH fit)
+                     Field_data_shell.jl           (any scan → shell at Rmax, SH fit; + grid for viewers)
+  stage1_optimize/   setup.jl / setup_shell.jl     (evaluation context: grid mesh / shell points + magnet positions)
+                     sim_annealing_optim/  operation.jl, run_optim.jl, run_lcurve.jl, benchmark.jl
+                     grad_optim/           grad_math.jl, grad_core.jl, optim_grad.jl, run_grad.jl,
+                                           run_grad_lcurve.jl, ring_search.jl, ring_combos.jl, insert_search.jl
+  stage1_5_export/   export_csv.jl     (optimizer result → shim CSV; honours final_state)
+                     osii_to_shim.jl   (ALT: OSII layout → shim CSV; skips Stages 0–1)
+  stage2_stl/        CSV_to_STL.jl     (Gmsh geometry)
+  stage3_viewers/    Shimming_magnets_visualizer.jl (3D)   field_slice_viewer.jl (slice)
+                     (both run field-only when no shim CSV exists)
+  stage4_verifier/   python_verifier.jl  (adapter; launches stages/stage4_verifier/Shimming_verifier/run_verifier.py)
+                     Shimming_verifier/  standalone Python (magpylib): main.py, run_verifier.py,
+                       measurement_io, shim_magnets, field_analysis, viewer_2d/3d, sh_pyramid,
+                       requirements.txt (+ its own Field_measurements/, Shimming_magnets/, output/)
 
-OSII_shimming_outputs_toconvert/    OSII layout CSVs (input to osii_to_shim.jl)
-Measured_Field_Data_csv/            input scans
-Interpolated_Field_Data_jld2/       Stage 0 output (grid + _shell maps)
-Optimizer_Output_per_Iteration/<ITER>/
-    <ITER>_BOOST_result.jld2        active Stage-1 result (last optimizer to run)
-    <ITER>_SA_result.jld2           SA's copy      ┐ never clobber each other →
-    GradOpt/grad_result.jld2        gradient's copy ┘ SA vs grad comparable
-    GradOpt/operator_G.jld2         cached linear operator
-    GradOpt/ring_operator.jld2      cached ring operator (SHARED: ring + insert search)
-    InsertSearch/insert_result.jld2 insert search's copy (sparsity in final_state)
-    Viewers/                         Stage-3 "Save GIF" output (viewer_gif_subdir)
-    PythonVerifier/                  Stage-4 output (verifier_output_subdir)
-    SHDecomposition/sh_decomposition.csv   Stage-0 SH coefficients (SH + shell adapters)
-    Lcurve/, GradOpt/Lcurve/, RingSearch/, InsertSearch/, Benchmark/, imgs/
-    <ITER>_shim.csv                 the seam (→ Stage 2); SPARSE after an insert search
-    SPARSE_LAYOUT.marker            written by osii_to_shim; export_csv refuses to clobber
-Magnet_Inserts_Models_stl_step/ , Static_Inserts_Models_stl_step/   base inserts
-Final_3D_printing_outputs_per_Iteration/<ITER>/Ring_<InsertPos>/{stl_outputs,Step_outputs}
-    (folder/file names use the P/N sign token, e.g. Ring_N07, RingN07_Tray03.stl —
-     InsertPos is the real, physical, signed tray slot, not a sequential index)
+core/    kernels/  f_kernel.jl (field), op_kernel.jl (SA mutation)
+         utils/    read_measured, sh_select, grid_utils, pos_trays, wrap, ppm_report, imanes,
+                   helping_functions_for_JIG, verify_solution, eval_metrics, viewer_frame
+tools/   make_halbach_ring_csv.py   ← test tool: Halbach-dipole "bits" shim CSV (see below)
+gui/     backend.jl, server.jl, app.html, presets.json
+assets/  Magnet_Inserts_Models_stl_step/ , Static_Inserts_Models_stl_step/   base inserts
+
+data/
+  inputs/   data/inputs/Measured_Field_Data_csv/           input scans
+            data/inputs/OSII_shimming_outputs_toconvert/   OSII layout CSVs (input to osii_to_shim.jl)
+  cache/    data/cache/Interpolated_Field_Data_jld2/      Stage 0 output (grid + _shell maps)
+  outputs/  Optimizer_Output_per_Iteration/<ITER>/
+                <ITER>_BOOST_result.jld2        active Stage-1 result (last optimizer to run)
+                <ITER>_SA_result.jld2           SA's copy      ┐ never clobber each other →
+                GradOpt/grad_result.jld2        gradient's copy ┘ SA vs grad comparable
+                GradOpt/operator_G.jld2         cached linear operator
+                GradOpt/ring_operator.jld2      cached ring operator (SHARED: ring + insert search)
+                InsertSearch/insert_result.jld2 insert search's copy (sparsity in final_state)
+                Viewers/                        Stage-3 "Save GIF" output (viewer_gif_subdir)
+                PythonVerifier/                 Stage-4 output (verifier_output_subdir)
+                SHDecomposition/sh_decomposition.csv   Stage-0 SH coefficients (SH + shell adapters)
+                Lcurve/, GradOpt/Lcurve/, RingSearch/, InsertSearch/, Benchmark/, imgs/
+                <ITER>_shim.csv                 the seam (→ Stage 2); SPARSE after an insert search
+                SPARSE_LAYOUT.marker            written by osii_to_shim; export_csv refuses to clobber
+            Final_3D_printing_outputs_per_Iteration/<ITER>/Ring_<InsertPos>/{stl_outputs,Step_outputs}
+                (folder/file names use the P/N sign token, e.g. Ring_N07, RingN07_Tray03.stl —
+                 InsertPos is the real, physical, signed tray slot, not a sequential index)
 ```
 
 Companion docs:
-- `GRAD_OPTIMIZATION.md` — the gradient optimizer's code + math in depth.
-- `USER_GUIDE.md` — a plain-language guide (no programming needed) to the OSII import,
+- `docs/GRAD_OPTIMIZATION.md` — the gradient optimizer's code + math in depth.
+- `docs/USER_GUIDE.md` — a plain-language guide (no programming needed) to the OSII import,
   measured-shell scoring, and the ring search, with a glossary and click-by-click steps.
-- `HANDOFF.md` — session state for a passover: what changed, what's verified vs. only
+- `docs/HANDOFF.md` — session state for a passover: what changed, what's verified vs. only
   statically edited, current config, and open items. Read this first when resuming work.
 
 ---
@@ -528,7 +534,7 @@ Companion docs:
   (`letter_thickness`) as editable fields; header/palette also refreshed to "BOOST —
   B0 Optimization Shimming Technique" / "Low Field MRI Project UC" on a light-green theme.
 - **Stage 4 — independent Python verifier** (`python_verifier.jl` +
-  `Shimming_verifier/run_verifier.py`): inputs are just the measured field, the shim
+  `stages/stage4_verifier/Shimming_verifier/run_verifier.py`): inputs are just the measured field, the shim
   layout and what to run; wired into `run_pipeline.jl` (`run_python_verifier`,
   `start_stage = 5`), `config.toml` and a GUI Stage-4 block. Handles the optimizer-vs-scan
   frame rotation. Ran end-to-end on the reference iteration (9562 ppm vs the optimizer's
@@ -544,14 +550,14 @@ Companion docs:
   from the physical tray slot; printed parts and folder/file names spell the sign as
   a letter token (`N`/`P`) instead of `+`/`-`. Fixed two real display/positional
   bugs along the way (the GUI table's lookup key, and both viewers' z/legend
-  derivation) — see `HANDOFF.md` for the full file-by-file breakdown.
+  derivation) — see `docs/HANDOFF.md` for the full file-by-file breakdown.
 - **Coordinate-frame handling** (see "Coordinate frames"): `shim_csv_frame` (default `scan`) rotates the shim
   CSV back to the scan frame at export; `viewer_frame` (default `scan`) draws both viewers in the scan frame
   with a signed field; `utils/viewer_frame.jl` holds the shared helpers; the verifier reads the CSV as
   written (`--shim-frame lab`).
 - **Halbach test bits** — `make_halbach_ring_csv.py` (see above) for axis/angle-convention checks.
 - Cleanup: removed dead code (`pipeline_config_WORKING.jl`, orphan utils) and stale
-  plan docs; this README, `GRAD_OPTIMIZATION.md`, and `USER_GUIDE.md` are the source of truth.
+  plan docs; this README, `docs/GRAD_OPTIMIZATION.md`, and `docs/USER_GUIDE.md` are the source of truth.
 
 ### Halbach test bits — `make_halbach_ring_csv.py` (axis / angle-convention checks)
 
@@ -565,7 +571,7 @@ field +x → θ = 2φ, field +y → θ = 2φ − 90° (φ = polar angle of the m
 `z_center + k·spacing` and each must land on a real tray slot (no slot at z = 0 unless a tray shift is 0);
 `--slot_center` takes consecutive *real* slots (slot 0 is skipped). Warns if `config.toml`'s geometry
 differs from the chosen preset. To build STLs from such a CSV: put it at
-`Optimizer_Output_per_Iteration/<ITER>/<ITER>_shim.csv` under a **new** iteration name and click
+`data/outputs/Optimizer_Output_per_Iteration/<ITER>/<ITER>_shim.csv` under a **new** iteration name and click
 **Build STL only** (never "Export + build STL" — it needs an optimizer result and would overwrite it).
 
 ### Known gaps vs. the Shimmer / OSII² preprint (arXiv 2608.22351; reviewed, NOT implemented)

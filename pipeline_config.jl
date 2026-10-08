@@ -56,12 +56,12 @@ const main_field_direction   = _get("main_field_direction")
 # ----------------------------------------------------------------------------
 # 1.  ROOT DIRECTORIES
 # ----------------------------------------------------------------------------
-const MEASURED_FIELD_DIR     = joinpath(ROOT, "Measured_Field_Data_csv")
-const INTERPOLATED_FIELD_DIR = joinpath(ROOT, "Interpolated_Field_Data_jld2")
-const OPTIMIZER_OUTPUT_DIR   = joinpath(ROOT, "Optimizer_Output_per_Iteration")
-const MAGNET_INSERTS_DIR     = joinpath(ROOT, "Magnet_Inserts_Models_stl_step")
-const STATIC_INSERTS_DIR     = joinpath(ROOT, "Static_Inserts_Models_stl_step")
-const FINAL_OUTPUT_DIR       = joinpath(ROOT, "Final_3D_printing_outputs_per_Iteration")
+const MEASURED_FIELD_DIR     = joinpath(ROOT, "data", "inputs", "Measured_Field_Data_csv")
+const INTERPOLATED_FIELD_DIR = joinpath(ROOT, "data", "cache", "Interpolated_Field_Data_jld2")
+const OPTIMIZER_OUTPUT_DIR   = joinpath(ROOT, "data", "outputs", "Optimizer_Output_per_Iteration")
+const MAGNET_INSERTS_DIR     = joinpath(ROOT, "assets", "Magnet_Inserts_Models_stl_step")
+const STATIC_INSERTS_DIR     = joinpath(ROOT, "assets", "Static_Inserts_Models_stl_step")
+const FINAL_OUTPUT_DIR       = joinpath(ROOT, "data", "outputs", "Final_3D_printing_outputs_per_Iteration")
 
 # ----------------------------------------------------------------------------
 # 2.  STAGE I/O PATHS  (artifacts handed from one stage to the next)
@@ -159,11 +159,11 @@ const Rmax = _flt("Rmax")
 #     m = Br·V/μ0 = Br·a³/μ0                          [A·m²]
 # (from B = μ0·M inside the magnet, M = m/V ⇒ m = M·V = (Br/μ0)·V.)
 #
-# Read by setup.jl, setup_shell.jl, grad_optim/ring_search.jl, grad_optim/insert_search.jl
+# Read by setup.jl, setup_shell.jl, stages/stage1_optimize/grad_optim/ring_search.jl, stages/stage1_optimize/grad_optim/insert_search.jl
 # and BOTH Stage-3 viewers, so a change here propagates everywhere. NOTE: the cached
 # operator GradOpt/operator_G.jld2 (and GradOpt/ring_operator.jld2) stores the μ it
 # was built with — rebuild it (Stage 1 "Grad build+solve", i.e.
-# `julia grad_optim/optim_grad.jl`) after changing either value; grad_core.jl warns
+# `julia stages/stage1_optimize/grad_optim/optim_grad.jl`) after changing either value; grad_core.jl warns
 # if the cache and the config disagree. Defaulted so older config.toml files load.
 const magnet_Br_T       = Float64(_getdef("magnet_Br_T", 1.32))     # remanence (T)
 const magnet_side_mm    = Float64(_getdef("magnet_side_mm", 6.0))   # cube side length (mm)
@@ -211,7 +211,7 @@ const benchmark_dir   = joinpath(optimizer_iter_dir, "Benchmark")
 const grad_seeds      = _range("grad_seeds")
 
 # ----------------------------------------------------------------------------
-# 4d. GRADIENT-OPTIMIZER OBJECTIVE  (grad_optim/run_grad.jl, run_grad_lcurve.jl)
+# 4d. GRADIENT-OPTIMIZER OBJECTIVE  (stages/stage1_optimize/grad_optim/run_grad.jl, run_grad_lcurve.jl)
 # ----------------------------------------------------------------------------
 #   J(θ) = data_term(By) + grad_lambda · mean|∇B|²   (all smooth, analytic grad).
 # grad_data_term :variance (mT²) or :softrange (mT, tracks ppm; β = grad_softrange_beta).
@@ -256,7 +256,7 @@ const sh_top_k            = Int(_getdef("sh_top_k", 5))          # :top_k → me
 const sh_report_dir       = joinpath(optimizer_iter_dir, "SHDecomposition")
 
 # ----------------------------------------------------------------------------
-# 4e. RING SEARCH  (grad_optim/ring_search.jl) — pick the best n rings to place
+# 4e. RING SEARCH  (stages/stage1_optimize/grad_optim/ring_search.jl) — pick the best n rings to place
 # ----------------------------------------------------------------------------
 const ring_search_n             = _int("ring_search_n")
 const ring_search_n_max         = _int("ring_search_n_max")
@@ -270,7 +270,7 @@ const ring_search_magnet_budget = _int("ring_search_magnet_budget")
 const ring_search_apply         = _get("ring_search_apply")
 
 # ----------------------------------------------------------------------------
-# 4g. INSERT SEARCH (grad_optim/insert_search.jl) — sequential per-insert placement
+# 4g. INSERT SEARCH (stages/stage1_optimize/grad_optim/insert_search.jl) — sequential per-insert placement
 # ----------------------------------------------------------------------------
 # Finer granularity than the ring search: places ONE insert (one tray at one ring,
 # mags_per_segment magnets) at a time, freezing its angles and folding its field
@@ -290,7 +290,7 @@ const insert_search_apply            = _getdef("insert_search_apply", true)
 # Reads an OSII shim-config CSV from OSII_INPUT_DIR and writes the standard shim
 # CSV (shim_csv_path) that Stage 2 consumes — no field map / optimizer needed.
 # Keys are optional (defaulted) so older config.toml files still load everywhere.
-const OSII_INPUT_DIR        = joinpath(ROOT, "OSII_shimming_outputs_toconvert")
+const OSII_INPUT_DIR        = joinpath(ROOT, "data", "inputs", "OSII_shimming_outputs_toconvert")
 const osii_input_name       = String(_getdef("osii_input_name", ""))
 const osii_input_path       = joinpath(OSII_INPUT_DIR, osii_input_name)
 const osii_invert_angle     = Bool(_getdef("osii_invert_angle", true))
@@ -319,7 +319,7 @@ const shim_csv_frame = String(_getdef("shim_csv_frame", "scan"))
 @assert viewer_frame in ("scan", "optimizer") "viewer_frame = \"$(viewer_frame)\" invalid; use \"scan\" or \"optimizer\"."
 
 # ----------------------------------------------------------------------------
-# 4h. STAGE 4 — INDEPENDENT PYTHON VERIFIER (Shimming_verifier/, magpylib)
+# 4h. STAGE 4 — INDEPENDENT PYTHON VERIFIER (stages/stage4_verifier/Shimming_verifier/, magpylib)
 # ----------------------------------------------------------------------------
 # A separate, self-contained Python tool re-computes the shimmed field from the shim
 # magnets with magpylib (closed-form cuboid model, no shared code with the Julia
@@ -329,7 +329,7 @@ const shim_csv_frame = String(_getdef("shim_csv_frame", "scan"))
 # it uses magnet_Br_T / magnet_side_mm above, and the measurement's coordinate unit
 # comes from sh_measured_unit_mm. Driven by python_verifier.jl (CLI:
 # Shimming_verifier/run_verifier.py). All keys optional, so older configs still load.
-const VERIFIER_DIR              = joinpath(ROOT, "Shimming_verifier")
+const VERIFIER_DIR              = joinpath(ROOT, "stages", "stage4_verifier", "Shimming_verifier")
 const run_python_verifier       = Bool(_getdef("run_python_verifier", false))     # run_pipeline: run Stage 4 at the end
 const verifier_python           = String(_getdef("verifier_python", "python"))    # Python executable (needs Shimming_verifier/requirements.txt)
 const verifier_measurement      = String(_getdef("verifier_measurement", ""))     # "" = measured_fieldmap_name; else file in Measured_Field_Data_csv/ or an absolute path

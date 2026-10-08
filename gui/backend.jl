@@ -22,30 +22,30 @@ using TOML
 
 const REPO         = normpath(joinpath(@__DIR__, ".."))
 const CONFIG       = joinpath(REPO, "config.toml")
-const MEASURED_DIR = joinpath(REPO, "Measured_Field_Data_csv")
-const OSII_DIR     = joinpath(REPO, "OSII_shimming_outputs_toconvert")
+const MEASURED_DIR = joinpath(REPO, "data", "inputs", "Measured_Field_Data_csv")
+const OSII_DIR     = joinpath(REPO, "data", "inputs", "OSII_shimming_outputs_toconvert")
 
 # Named stages the GUI can launch → script path (relative to the repo root).
 const STAGES = Dict(
     "full"            => "run_pipeline.jl",                         # full run OR lcurve, per config
-    "adapter_reshape" => "Field_data_file_adapter.jl",             # Stage 0 (regular grid)
-    "adapter_sh"      => "Field_data_SH_interpolator.jl",          # Stage 0 (SH → grid)
-    "adapter_shell"   => "Field_data_shell.jl",                    # Stage 0 (SH → shell at Rmax)
-    "optim_grad"      => joinpath("grad_optim", "optim_grad.jl"),  # build + cache operator G
-    "run_grad"        => joinpath("grad_optim", "run_grad.jl"),    # gradient L-BFGS solve
-    "grad_lcurve"     => joinpath("grad_optim", "run_grad_lcurve.jl"),
-    "ring_search"     => joinpath("grad_optim", "ring_search.jl"),     # pick best n rings
-    "insert_search"   => joinpath("grad_optim", "insert_search.jl"),   # sequential per-insert placement
-    "sa"              => joinpath("sim_annealing_optim", "run_optim.jl"),
-    "sa_lcurve"       => joinpath("sim_annealing_optim", "run_lcurve.jl"),
-    "benchmark"       => joinpath("sim_annealing_optim", "benchmark.jl"),
-    "export"          => "export_csv.jl",
-    "osii"            => "osii_to_shim.jl",                        # Stage 1.5 (alt): OSII CSV → shim CSV
-    "stl"             => "CSV_to_STL.jl",
-    "eval"            => joinpath("utils", "eval_metrics.jl"),
-    "viewer_3d"       => "Shimming_magnets_visualizer.jl",         # Stage 3 (3D)
-    "viewer_slice"    => "field_slice_viewer.jl",                  # Stage 3 (slice/profile)
-    "verify_python"   => "python_verifier.jl",                     # Stage 4 (independent magpylib check)
+    "adapter_reshape" => joinpath("stages", "stage0_field", "Field_data_file_adapter.jl"),             # Stage 0 (regular grid)
+    "adapter_sh"      => joinpath("stages", "stage0_field", "Field_data_SH_interpolator.jl"),          # Stage 0 (SH → grid)
+    "adapter_shell"   => joinpath("stages", "stage0_field", "Field_data_shell.jl"),                    # Stage 0 (SH → shell at Rmax)
+    "optim_grad"      => joinpath("stages", "stage1_optimize", "grad_optim", "optim_grad.jl"),  # build + cache operator G
+    "run_grad"        => joinpath("stages", "stage1_optimize", "grad_optim", "run_grad.jl"),    # gradient L-BFGS solve
+    "grad_lcurve"     => joinpath("stages", "stage1_optimize", "grad_optim", "run_grad_lcurve.jl"),
+    "ring_search"     => joinpath("stages", "stage1_optimize", "grad_optim", "ring_search.jl"),     # pick best n rings
+    "insert_search"   => joinpath("stages", "stage1_optimize", "grad_optim", "insert_search.jl"),   # sequential per-insert placement
+    "sa"              => joinpath("stages", "stage1_optimize", "sim_annealing_optim", "run_optim.jl"),
+    "sa_lcurve"       => joinpath("stages", "stage1_optimize", "sim_annealing_optim", "run_lcurve.jl"),
+    "benchmark"       => joinpath("stages", "stage1_optimize", "sim_annealing_optim", "benchmark.jl"),
+    "export"          => joinpath("stages", "stage1_5_export", "export_csv.jl"),
+    "osii"            => joinpath("stages", "stage1_5_export", "osii_to_shim.jl"),                        # Stage 1.5 (alt): OSII CSV → shim CSV
+    "stl"             => joinpath("stages", "stage2_stl", "CSV_to_STL.jl"),
+    "eval"            => joinpath("core", "utils", "eval_metrics.jl"),
+    "viewer_3d"       => joinpath("stages", "stage3_viewers", "Shimming_magnets_visualizer.jl"),         # Stage 3 (3D)
+    "viewer_slice"    => joinpath("stages", "stage3_viewers", "field_slice_viewer.jl"),                  # Stage 3 (slice/profile)
+    "verify_python"   => joinpath("stages", "stage4_verifier", "python_verifier.jl"),                     # Stage 4 (independent magpylib check)
 )
 
 stage_names() = sort(collect(keys(STAGES)))
@@ -219,7 +219,7 @@ end
 
 Summarise the shim CSV at the Stage-2 seam by (RingNumber, tray), so the GUI can
 show which trays are really filled. A ring-level search fills all `num_trays`
-trays of a ring; `grad_optim/insert_search.jl` and an OSII import can fill only
+trays of a ring; `stages/stage1_optimize/grad_optim/insert_search.jl` and an OSII import can fill only
 some, and the ring-placement table would otherwise imply a full ring either way.
 
 Tray is re-derived from (X, Y) exactly as `utils/helping_functions_for_JIG.jl`
@@ -229,7 +229,7 @@ Pure parsing — no Gmsh, no CUDA — so it is safe to call on every page load.
 function placement()
     cfg = read_config()
     it  = get(cfg, "iteration", "")
-    csv = joinpath(REPO, "Optimizer_Output_per_Iteration", it, "$(it)_shim.csv")
+    csv = joinpath(REPO, "data", "outputs", "Optimizer_Output_per_Iteration", it, "$(it)_shim.csv")
     isfile(csv) || return (; exists = false, magnets = 0, rings = [])
     nt = Int(get(cfg, "num_trays", 12))
     counts = Dict{Tuple{Int,Int},Int}()          # (ring, tray) => magnets
@@ -256,9 +256,9 @@ end
 # --- current iteration's output folders (derived from config) ----------------
 function output_dirs()
     it = read_config()["iteration"]
-    opt = joinpath(REPO, "Optimizer_Output_per_Iteration", it)
+    opt = joinpath(REPO, "data", "outputs", "Optimizer_Output_per_Iteration", it)
     return (optimizer = opt,
-            final      = joinpath(REPO, "Final_3D_printing_outputs_per_Iteration", it),
+            final      = joinpath(REPO, "data", "outputs", "Final_3D_printing_outputs_per_Iteration", it),
             verifier   = joinpath(opt, get(read_config(), "verifier_output_subdir", "PythonVerifier")))
 end
 

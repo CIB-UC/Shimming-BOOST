@@ -127,7 +127,7 @@ sweep_values = [10, 100, 1000, 10000, 100000, 1000000]
 # Spherical-harmonic (SH) decomposition -- SH adapter (field_adapter = "spherical_harmonics")
 # and shell adapter (eval_domain = "shell"). Stage 0 always PRINTS the decomposition of the
 # measured field (per-degree strength + the sh_top_k largest coefficients) and writes it to
-# Optimizer_Output_per_Iteration/<ITER>/SHDecomposition/sh_decomposition.csv.
+# data/outputs/Optimizer_Output_per_Iteration/<ITER>/SHDecomposition/sh_decomposition.csv.
 # sh_select then chooses what the field map is BUILT from (kept columns are re-fitted to the data):
 #   "all"     every degree 0..sh_degree                       (default; unchanged behaviour)
 #   "first_n" degrees 0..sh_use_degree only                   (smooths away the high-order detail)
@@ -160,7 +160,7 @@ ring_search_apply = true   # write winning rings into positions_in_tray_new_wish
 # rings). This places ONE insert at a time -- one tray at one ring, holding
 # mags_per_segment magnets -- choosing where AND its rotations, then freezes it,
 # folds its field into the base, and searches for the next against that. See
-# grad_optim/insert_search.jl. Writes a SPARSE shim CSV: run Stage 2 with
+# stages/stage1_optimize/grad_optim/insert_search.jl. Writes a SPARSE shim CSV: run Stage 2 with
 # "Build STL only" afterwards.
 #
 # How many inserts: magnets_available / mags_per_segment, rounded DOWN. Every
@@ -177,7 +177,7 @@ insert_search_apply = true   # publish the shim CSV + record the rings used
 # --- OSII import (alternative Stage 1.5: OSII shim config CSV → shim CSV) ------
 # Converts an OSII magnet-placement file into our Stage-2 shim CSV, bypassing the
 # field map + optimizer (osii_to_shim.jl). Frame map: our X = their x, our Y =
-# their z, our Z = −their y; metres → mm. File lives in OSII_shimming_outputs_toconvert/.
+# their z, our Z = −their y; metres → mm. File lives in data/inputs/OSII_shimming_outputs_toconvert/.
 osii_input_name = "Tryout_angles_90deg.csv"
 osii_invert_angle = true   # OSII twists about +y; our pocket angle is about −y (our +Z) → flip sign
 osii_angle_offset_deg = 90   # OSII 0° (+z = our +y) → our 90°; tweak if a test print is rotated
@@ -187,7 +187,7 @@ run_3d_viewer = false
 run_slice_viewer = true
 
 # GIF export (both viewers have a "Save GIF" button) -- saved under
-# Optimizer_Output_per_Iteration/<ITER>/Viewers/
+# data/outputs/Optimizer_Output_per_Iteration/<ITER>/Viewers/
 viewer_gif_frames = 120   # frames per GIF; frames / fps = length in seconds
 viewer_gif_fps = 20
 viewer_gif_subdir = "Viewers"
@@ -204,17 +204,17 @@ viewer_frame = "scan"
 # CSVs are used exactly as written, in whatever frame this key declares.
 shim_csv_frame = "scan"
 
-# --- Stage 4: independent Python verifier (Shimming_verifier/, magpylib) -----
+# --- Stage 4: independent Python verifier (stages/stage4_verifier/Shimming_verifier/, magpylib) -----
 # Re-computes the shimmed field from the shim magnets with a separate, self-contained
 # Python model and reports ppm + 2D projections + a 3D scene + spherical-harmonic
 # pyramids. It only needs: which measured field, which shim layout, what to run.
 # Magnet Br/side and the measurement unit are NOT repeated here -- it reuses
 # magnet_Br_T, magnet_side_mm and sh_measured_unit_mm. Needs a Python with
-# `pip install -r Shimming_verifier/requirements.txt`. Outputs go to
-# Optimizer_Output_per_Iteration/<ITER>/PythonVerifier/.
+# `pip install -r stages/stage4_verifier/Shimming_verifier/requirements.txt`. Outputs go to
+# data/outputs/Optimizer_Output_per_Iteration/<ITER>/PythonVerifier/.
 run_python_verifier = true   # full run: also run Stage 4 at the end (or use start_stage = 5)
 verifier_python = "python"   # Python executable (full path if not on PATH)
-verifier_measurement = ""   # "" = measured_fieldmap_name; else a file in Measured_Field_Data_csv/ or an absolute path
+verifier_measurement = ""   # "" = measured_fieldmap_name; else a file in data/inputs/Measured_Field_Data_csv/ or an absolute path
 verifier_use_shim = true   # false = baseline only (measured field, no shim magnets)
 verifier_shim_csv = ""   # "" = this iteration's shim CSV; else a path (RingNumber seam CSV or X,Y,Z,Angle CSV, optimizer frame)
 verifier_make_2d = true   # 2D projections, with vs without shim
