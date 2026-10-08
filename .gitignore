@@ -15,4 +15,5 @@ Thumbs.db
 *.log
 
 # --- internal notes (kept locally, not published) ---
-docs/
+docs/GRAD_OPTIMIZATION.md
+docs/HANDOFF.md
