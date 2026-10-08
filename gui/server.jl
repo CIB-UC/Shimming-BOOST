@@ -9,7 +9,7 @@
 #   POST /api/import        → {src}   copy a CSV into the data folder
 #   GET  /api/osii          → OSII shim-config CSVs + the currently selected one
 #   POST /api/import_osii   → {src}   copy an OSII CSV into data/inputs/OSII_shimming_outputs_toconvert/
-#   POST /api/open_folder   → {which} open output/measured/root folder in the OS
+#   POST /api/open_folder   → {which} open a project folder in the OS (root, measured, osii, cache, assets, optimizer, viewers, verifier, final)
 #   POST /api/run           → {stage} run a stage, streaming its log line-by-line
 #
 # No build step: app.html is plain HTML/CSS/JS. Needs HTTP + JSON (install_deps.jl).
@@ -96,7 +96,11 @@ function handle(req::HTTP.Request)
             path2 = which == "final"     ? d.final :
                     which == "optimizer" ? d.optimizer :
                     which == "verifier"  ? d.verifier :
-                    which == "measured"  ? Backend.MEASURED_DIR : Backend.REPO
+                    which == "viewers"   ? d.viewers :
+                    which == "measured"  ? Backend.MEASURED_DIR :
+                    which == "osii"      ? Backend.OSII_DIR :
+                    which == "cache"     ? Backend.CACHE_DIR :
+                    which == "assets"    ? Backend.ASSETS_DIR : Backend.REPO
             Backend.open_folder(path2)
             return json_resp(Dict("ok" => true, "opened" => path2))
 

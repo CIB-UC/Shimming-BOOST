@@ -36,8 +36,7 @@ moments, so field variance is a smooth, convex function of the angles with an
 analytic gradient. A gradient method (L-BFGS) therefore finds the **global**
 optimum in seconds — and shows that the remaining inhomogeneity is a **hardware
 limit**, not an optimizer limit. The lever from here is physical: more / stronger /
-closer shim magnets, or more rings. (Full derivation + code walkthrough:
-`docs/GRAD_OPTIMIZATION.md`.)
+closer shim magnets, or more rings.
 
 **Three headline capabilities beyond "solve for the angles":**
 - **Ring search** — instead of telling it where to put rings, ask it to *find* the
@@ -192,7 +191,7 @@ Three frames exist; the pipeline converts between the first two only.
 - **Physical tray frame** — Stage 2 numbers trays from the CSV's X, Y (`assign_tray`: tray 12 → +y,
   9 → +x, 6 → −y, 3 → −x). It is **not** converted anywhere: it simply takes the CSV's frame to be the
   magnet's. Whether that is right depends on where tray 12 physically sits relative to B0 / the scan axes
-  (open question, see HANDOFF).
+  (open question).
 
 **Rotating back (new).** Two settings in `config.toml`, both default `"scan"`:
 - `shim_csv_frame` — frame the shim CSV is **written** in. With `"scan"`, `export_csv.jl` (both
@@ -242,9 +241,6 @@ cached operator `operator_G.jld2`:
 - `grad_math.jl` — pure shared math; `grad_core.jl` — binds it to the cached operator.
 - Objective knobs: `grad_data_term` (`:variance` / `:softrange`), `grad_softrange_beta`,
   `grad_lambda`.
-
-Full deep-dive (every function + the math + how L-BFGS solves it):
-**`docs/GRAD_OPTIMIZATION.md`**.
 
 **Shim-magnet strength.** Two numbers, `magnet_Br_T` + `magnet_side_mm` in
 `config.toml`: the magnet's **remanence** Br (T, a material property from the
@@ -417,9 +413,8 @@ config.toml  Project.toml  Manifest.toml  pipeline_config.jl   ← stay at the r
     pipeline_config.jl ← reads config.toml, derives paths + geometry
 run_pipeline.jl        ← orchestrator (Stage 0→1→1.5→2→3→4)
 install_deps.jl        ← pins the Julia project
-README.md              ← this file (the other docs are in docs/)
-
-docs/    GRAD_OPTIMIZATION.md  USER_GUIDE.md  HANDOFF.md
+README.md              ← this file
+USER_GUIDE.md          ← plain-language guide (no programming needed)
 
 stages/
   stage0_field/      Field_data_file_adapter.jl    (regular grid → grid)
@@ -468,12 +463,9 @@ data/
                  InsertPos is the real, physical, signed tray slot, not a sequential index)
 ```
 
-Companion docs:
-- `docs/GRAD_OPTIMIZATION.md` — the gradient optimizer's code + math in depth.
-- `docs/USER_GUIDE.md` — a plain-language guide (no programming needed) to the OSII import,
+Companion doc:
+- `USER_GUIDE.md` — a plain-language guide (no programming needed) to the OSII import,
   measured-shell scoring, and the ring search, with a glossary and click-by-click steps.
-- `docs/HANDOFF.md` — session state for a passover: what changed, what's verified vs. only
-  statically edited, current config, and open items. Read this first when resuming work.
 
 ---
 
@@ -550,14 +542,14 @@ Companion docs:
   from the physical tray slot; printed parts and folder/file names spell the sign as
   a letter token (`N`/`P`) instead of `+`/`-`. Fixed two real display/positional
   bugs along the way (the GUI table's lookup key, and both viewers' z/legend
-  derivation) — see `docs/HANDOFF.md` for the full file-by-file breakdown.
+  derivation).
 - **Coordinate-frame handling** (see "Coordinate frames"): `shim_csv_frame` (default `scan`) rotates the shim
   CSV back to the scan frame at export; `viewer_frame` (default `scan`) draws both viewers in the scan frame
   with a signed field; `utils/viewer_frame.jl` holds the shared helpers; the verifier reads the CSV as
   written (`--shim-frame lab`).
 - **Halbach test bits** — `make_halbach_ring_csv.py` (see above) for axis/angle-convention checks.
 - Cleanup: removed dead code (`pipeline_config_WORKING.jl`, orphan utils) and stale
-  plan docs; this README, `docs/GRAD_OPTIMIZATION.md`, and `docs/USER_GUIDE.md` are the source of truth.
+  plan docs; this README and `USER_GUIDE.md` are the source of truth.
 
 ### Halbach test bits — `make_halbach_ring_csv.py` (axis / angle-convention checks)
 

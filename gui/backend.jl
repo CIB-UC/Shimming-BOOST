@@ -24,6 +24,8 @@ const REPO         = normpath(joinpath(@__DIR__, ".."))
 const CONFIG       = joinpath(REPO, "config.toml")
 const MEASURED_DIR = joinpath(REPO, "data", "inputs", "Measured_Field_Data_csv")
 const OSII_DIR     = joinpath(REPO, "data", "inputs", "OSII_shimming_outputs_toconvert")
+const CACHE_DIR    = joinpath(REPO, "data", "cache", "Interpolated_Field_Data_jld2")
+const ASSETS_DIR   = joinpath(REPO, "assets")
 
 # Named stages the GUI can launch → script path (relative to the repo root).
 const STAGES = Dict(
@@ -259,7 +261,8 @@ function output_dirs()
     opt = joinpath(REPO, "data", "outputs", "Optimizer_Output_per_Iteration", it)
     return (optimizer = opt,
             final      = joinpath(REPO, "data", "outputs", "Final_3D_printing_outputs_per_Iteration", it),
-            verifier   = joinpath(opt, get(read_config(), "verifier_output_subdir", "PythonVerifier")))
+            verifier   = joinpath(opt, get(read_config(), "verifier_output_subdir", "PythonVerifier")),
+            viewers    = joinpath(opt, get(read_config(), "viewer_gif_subdir", "Viewers")))
 end
 
 # --- run a stage as a streamed subprocess ------------------------------------

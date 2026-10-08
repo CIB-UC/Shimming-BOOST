@@ -4,7 +4,7 @@
 This guide explains, in everyday language, what the tool does and the newest
 things it can do. Every technical word is explained in the **Glossary** at the end.
 
-For the deep technical details, see `../README.md` and `GRAD_OPTIMIZATION.md`. This
+For the deep technical details, see `README.md`. This
 document is the friendly version.
 
 ---

@@ -20,9 +20,10 @@
     --err:#c0392b;
   }
   *{box-sizing:border-box}
-  body{margin:0;font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg)}
-  header{padding:10px 20px;border-bottom:1px solid var(--edge);display:flex;align-items:center;gap:14px;position:sticky;top:0;background:var(--panel);z-index:9}
-  header .logo{width:38px;height:38px;border-radius:9px;background:var(--acc-dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:0 0 auto;letter-spacing:-.02em}
+  html,body{height:100%}
+  body{margin:0;font:14px/1.45 system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--fg);display:flex;flex-direction:column;overflow:hidden}
+  header{padding:7px 16px;border-bottom:1px solid var(--edge);display:flex;align-items:center;gap:14px;background:var(--panel);flex:0 0 auto}
+  header .logo{width:32px;height:32px;border-radius:9px;background:var(--acc-dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:0 0 auto;letter-spacing:-.02em}
   header .titles{display:flex;flex-direction:column;line-height:1.25}
   header h1{font-size:16px;margin:0;font-weight:700;color:var(--fg)}
   header .subtitle{font-size:11.5px;color:var(--mut)}
@@ -33,36 +34,66 @@
   button.primary{background:var(--acc-dark);border-color:var(--acc-dark);color:#fff;font-weight:600}
   button.primary:hover:not(:disabled){background:var(--acc-deep);border-color:var(--acc-deep)}
   button.stop{background:var(--err);border-color:var(--err);color:#fff;font-weight:600}
-  main{max-width:1120px;margin:0 auto;padding:18px 20px 260px}
-  .stage{border:1px solid var(--edge);border-radius:12px;margin:0 0 16px;overflow:hidden;background:var(--panel)}
+  /* ---- app shell: nothing scrolls at page level; each stage is a tab ---- */
+  .iterband{flex:0 0 auto;background:var(--panel);border-bottom:1px solid var(--edge);padding:7px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .tabs{flex:0 0 auto;display:flex;gap:6px;padding:8px 16px 0;background:var(--bg);flex-wrap:wrap}
+  .tabs button{border-radius:9px 9px 0 0;border-bottom:none;padding:7px 14px;background:var(--sub);color:var(--mut);font-weight:600}
+  .tabs button .n{display:inline-block;min-width:20px;height:20px;line-height:20px;border-radius:10px;background:var(--edge);color:var(--fg);font-size:11px;text-align:center;margin-right:6px}
+  .tabs button.active{background:var(--panel);color:var(--fg);border-color:var(--edge);box-shadow:0 2px 0 var(--panel)}
+  .tabs button.active .n{background:var(--acc)}
+  .workarea{flex:1 1 auto;min-height:0;display:flex;gap:10px;padding:0 16px 8px}
+  footer.folderbar{flex:0 0 auto;display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:7px 16px;background:var(--panel);border-top:1px solid var(--edge)}
+  footer.folderbar .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+  footer.folderbar .sep{width:1px;height:20px;background:var(--edge);margin:0 6px}
+  footer.folderbar button{padding:5px 10px;font-size:12.5px}
+  main{flex:1 1 auto;min-width:0;min-height:0;display:flex;flex-direction:column;position:relative}
+  #toast{position:absolute;right:10px;top:8px;z-index:5;margin:0;max-width:60%;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+  .stage{display:none;flex:1 1 auto;min-height:0;border:1px solid var(--edge);border-radius:0 12px 12px 12px;background:var(--panel);overflow:hidden;flex-direction:column}
+  .stage.active{display:flex}
   .stagehead{display:flex;align-items:center;gap:12px;padding:11px 16px;background:transparent;border-bottom:1px solid var(--edge)}
   .stagehead .num{display:inline-flex;width:26px;height:26px;border-radius:50%;background:var(--acc);color:#0d0a0b;font-weight:700;align-items:center;justify-content:center;font-size:13px}
   .stagehead h2{font-size:15px;margin:0;font-weight:600}
-  .stagebody{padding:14px 16px}
-  .cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
-  .sub{background:var(--sub);border:1px solid var(--edge);border-radius:10px;padding:12px 14px}
+  .stagebody{padding:8px 12px;flex:1 1 auto;min-height:0;overflow:auto}   /* overflow = fallback only on very short windows */
+  .cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+  .sub{background:var(--sub);border:1px solid var(--edge);border-radius:10px;padding:9px 12px}
   .sub h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:0 0 9px}
-  .row{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .row{display:flex;align-items:center;gap:8px;margin:3px 0}
   .row label{flex:0 0 48%;color:var(--fg);font-weight:600;font-size:12.5px;word-break:break-word}
-  .row input,.row select{flex:1;background:#fff;color:var(--fg);border:1px solid var(--edge);border-radius:6px;padding:6px 8px;font:inherit;min-width:0}
+  .row input,.row select{flex:1;background:#fff;color:var(--fg);border:1px solid var(--edge);border-radius:6px;padding:4px 8px;font:inherit;min-width:0}
   .row input[type=checkbox]{flex:0 0 auto;width:18px;height:18px;accent-color:var(--acc-deep)}
   .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
   .tasks{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
   .tasks button.active{background:var(--acc);border-color:var(--acc);color:#0d0a0b;font-weight:600}
-  #toast{padding:8px 12px;border-radius:7px;font-size:13px;display:none;margin-bottom:14px}
+  #toast{padding:8px 12px;border-radius:7px;font-size:13px;display:none;background:var(--panel)}
   #toast.ok{display:block;background:rgba(63,125,32,.12);color:var(--acc-deep);border:1px solid var(--acc-deep)}
   #toast.err{display:block;background:rgba(192,57,43,.1);color:var(--err);border:1px solid var(--err)}
   .hint{color:var(--mut);font-size:12px;margin:4px 0 0}
   code{background:var(--sub);border:1px solid var(--edge);padding:1px 5px;border-radius:4px}
-  #runbar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--edge);padding:8px 20px 10px;z-index:8}
-  #runbar .top{display:flex;align-items:center;gap:10px;max-width:1120px;margin:0 auto 6px}
-  #log{max-width:1120px;margin:0 auto;background:#0d0a0b;border:1px solid var(--edge);border-radius:8px;padding:8px 12px;max-height:180px;min-height:52px;overflow:auto;white-space:pre-wrap;font:12px/1.4 ui-monospace,Consolas,monospace;color:#e9f2df}
+  /* run log: slim column on the right (light, not a big black box) */
+  #runbar{flex:0 0 clamp(270px,24vw,380px);min-height:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:8px 10px}
+  #runbar .top{display:flex;align-items:center;gap:8px;margin:0 0 6px;flex-wrap:wrap}
+  #log{flex:1 1 auto;min-height:0;margin:0;background:var(--sub);border:1px solid var(--edge);border-radius:8px;padding:6px 9px;overflow:auto;white-space:pre-wrap;word-break:break-word;font:11.5px/1.4 ui-monospace,Consolas,monospace;color:var(--fg)}
+  /* Stage 0 has ~25 fields: three sub-tabs, each laid out across the full width (no scrolling) */
+  .subtabs{display:flex;gap:6px;margin:0 0 8px}
+  .subtabs button{padding:5px 12px;font-size:12.5px;border-radius:999px;background:var(--sub);color:var(--mut);font-weight:600}
+  .subtabs button.active{background:var(--acc);border-color:var(--acc);color:#0d0a0b}
+  #s0 .cols>.sub.hide{display:none}
+  #s0 .cols{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start}
+  #s0 .cols>.sub[data-sub=geo],#s0 .cols>.sub[data-sub=adapter]{grid-column:1/-1}
+  #geofields,#adapterfields{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));column-gap:16px}
+  #s4 .cols{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));align-items:start}
+  #s4 .cols>.sub:nth-child(3){grid-column:1/-1}
+  #s4 .hint{-webkit-line-clamp:1}
+  #s4 .row{margin:2px 0}
+  #s4 .fdesc{margin-bottom:1px}
+  #verifierrun{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));column-gap:16px}
   .spin{color:var(--acc-deep)}
-  .fdesc{font-size:11px;color:var(--mut);margin:-1px 0 9px 0;line-height:1.35}
-  .iterband{background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:11px 16px;margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-  .iterband label{color:var(--mut);font-size:13px}
+  .fdesc{font-size:11px;color:var(--mut);margin:-1px 0 3px 0;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* full text on hover (title) */
+  #s0 .hint,#s4 .hint{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .iterband label{color:var(--mut);font-size:13px}
   .iterband input{background:#fff;color:var(--fg);border:1px solid var(--edge);border-radius:6px;padding:7px 10px;font:inherit}
   .iterband input.name{flex:1;min-width:200px;font-size:15px;font-weight:600}
+  #ringplacement{overflow:auto;max-height:calc(100vh - 470px);min-height:60px}   /* long ring lists scroll inside the table, not the page */
   table.ring{width:100%;border-collapse:collapse;font-size:13px}
   table.ring th,table.ring td{text-align:left;padding:5px 9px;border-bottom:1px solid var(--edge)}
   table.ring th{color:var(--mut);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
@@ -82,42 +113,56 @@
   <button id="save" class="primary">Save config</button>
 </header>
 
+<!-- ITERATION -->
+<div class="iterband">
+  <label>Iteration name</label>
+  <input id="iter-top" class="iterbox name" placeholder="my_run"/>
+  <label>Label #</label>
+  <input id="iter-num" type="number" style="width:88px"/>
+</div>
+
+<!-- STAGE BUTTONS -->
+<nav class="tabs" id="tabs">
+  <button data-tab="s0"><span class="n">0</span>Field map</button>
+  <button data-tab="s1"><span class="n">1</span>Optimize</button>
+  <button data-tab="s15"><span class="n">1.5</span>OSII import</button>
+  <button data-tab="s2"><span class="n">2</span>Inserts / STL</button>
+  <button data-tab="s3"><span class="n">3</span>Viewers</button>
+  <button data-tab="s4"><span class="n">4</span>Verifier</button>
+</nav>
+
+<div class="workarea">
+
 <main>
   <div id="toast"></div>
 
-  <!-- ITERATION (beginning) -->
-  <div class="iterband">
-    <label>Iteration name</label>
-    <input id="iter-top" class="iterbox name" placeholder="my_run"/>
-    <label>Label #</label>
-    <input id="iter-num" type="number" style="width:88px"/>
-  </div>
-
   <!-- STAGE 0 -->
-  <section class="stage">
+  <section class="stage" id="s0">
     <div class="stagehead"><span class="num">0</span><h2>Field map</h2><span class="grow"></span>
       <button id="run-stage0" class="primary runbtn">Prepare field map</button></div>
-    <div class="stagebody"><div class="cols">
-      <div class="sub"><h3>Measured data</h3>
+    <div class="stagebody">
+      <div class="subtabs" id="s0tabs"><button data-sub="data">Data &amp; magnets</button><button data-sub="geo">Geometry</button><button data-sub="adapter">Field adapter</button></div>
+      <div class="cols">
+      <div class="sub" data-sub="data"><h3>Measured data</h3>
         <div class="row"><label>Use field map</label><select id="measured"></select></div>
         <div class="row"><label>Import CSV (full path)</label><input id="importpath" placeholder="C:\path\to\scan.csv"/></div>
         <div class="actions"><button id="importbtn" class="presetbtn">Import into data folder</button></div>
         <p class="hint">Copies into <code>data/inputs/Measured_Field_Data_csv/</code>, then pick it above.</p>
       </div>
-      <div class="sub"><h3>Geometry</h3>
+      <div class="sub" data-sub="geo"><h3>Geometry</h3>
         <div class="row"><label>Preset</label><select id="geopreset"></select></div>
         <div class="actions"><button class="presetbtn" data-apply="geometry">Apply preset</button><button class="presetbtn" data-saveas="geometry">Save as new…</button></div>
         <div id="geofields" style="margin-top:8px"></div>
       </div>
-      <div class="sub"><h3>Field adapter</h3><div id="adapterfields"></div></div>
-      <div class="sub"><h3>Shim magnets</h3><div id="magnetfields"></div>
+      <div class="sub" data-sub="adapter"><h3>Field adapter</h3><div id="adapterfields"></div></div>
+      <div class="sub" data-sub="data"><h3>Shim magnets</h3><div id="magnetfields"></div>
         <p class="hint" id="muhint"></p>
       </div>
     </div></div>
   </section>
 
   <!-- STAGE 1 -->
-  <section class="stage">
+  <section class="stage" id="s1">
     <div class="stagehead"><span class="num">1</span><h2>Optimize</h2><span class="grow"></span>
       <button data-run="eval" class="runbtn">Compare metrics</button>
       <button id="run-stage1" class="primary runbtn">Run optimization</button></div>
@@ -128,7 +173,7 @@
   </section>
 
   <!-- STAGE 1.5 — OSII IMPORT (alternative entry; no field map / optimizer) -->
-  <section class="stage">
+  <section class="stage" id="s15">
     <div class="stagehead"><span class="num">1.5</span><h2>OSII import</h2><span class="grow"></span>
       <button id="run-osii" class="primary runbtn">Convert OSII → shim CSV</button></div>
     <div class="stagebody"><div class="cols">
@@ -145,7 +190,7 @@
   </section>
 
   <!-- STAGE 2 -->
-  <section class="stage">
+  <section class="stage" id="s2">
     <div class="stagehead"><span class="num">2</span><h2>Inserts / STL</h2><span class="grow"></span>
       <button data-run="stl" class="runbtn">Build STL only</button>
       <button data-run="export,stl" class="primary runbtn">Export + build STL</button></div>
@@ -155,28 +200,20 @@
         <div class="actions"><button class="presetbtn" data-apply="stage2">Apply preset</button><button class="presetbtn" data-saveas="stage2">Save as new…</button></div>
         <p class="hint">V1/V2 are starting points — edit and “Save as new…” to add your own.</p>
       </div>
-      <div class="sub" style="grid-column:2/-1"><h3>Insert parameters (mm)</h3><div id="stage2fields" class="cols"></div></div>
+      <div class="sub" style="grid-column:span 3"><h3>Insert parameters (mm)</h3><div id="stage2fields" class="cols"></div></div>
     </div></div>
   </section>
 
   <!-- STAGE 3 -->
-  <section class="stage">
-    <div class="stagehead"><span class="num">3</span><h2>Verify &amp; output</h2><span class="grow"></span>
+  <section class="stage" id="s3">
+    <div class="stagehead"><span class="num">3</span><h2>Viewers &amp; ring placement</h2><span class="grow"></span>
       <button data-run="viewer_3d" class="runbtn">Open 3D viewer</button>
       <button data-run="viewer_slice" class="runbtn">Open slice viewer</button></div>
     <div class="stagebody"><div class="cols">
       <div class="sub"><h3>Viewers (full-run toggles)</h3><div id="viewerfields"></div>
         <p class="hint">Both viewers also open with <b>no shim solution</b> — after Stage 0 alone they show the measured field (pre-shim) so you can inspect it before optimizing.</p>
       </div>
-      <div class="sub"><h3>Open folder</h3>
-        <div class="actions">
-          <button data-open="final">Output (3D printing)</button>
-          <button data-open="optimizer">Optimizer output</button>
-          <button data-open="measured">Measured data</button>
-          <button data-open="root">Project root</button>
-        </div>
-      </div>
-      <div class="sub" style="grid-column:1/-1"><h3>Ring placement — where each printed ring goes</h3>
+      <div class="sub" style="grid-column:span 2"><h3>Ring placement — where each printed ring goes</h3>
         <div id="ringplacement"></div>
         <p class="hint">Each <code>Ring_N</code> folder of inserts mounts at the axial slot below. “Trays filled” reads the shim CSV on disk, so a sparse layout (insert search / OSII import) shows exactly which trays carry magnets. Refreshes after each run.</p>
       </div>
@@ -184,9 +221,8 @@
   </section>
 
   <!-- STAGE 4 — independent Python (magpylib) verifier -->
-  <section class="stage">
+  <section class="stage" id="s4">
     <div class="stagehead"><span class="num">4</span><h2>Python verifier</h2><span class="grow"></span>
-      <button data-open="verifier">Open verifier output</button>
       <button id="run-verify" data-run="verify_python" class="primary runbtn">Run verifier</button></div>
     <div class="stagebody"><div class="cols">
       <div class="sub"><h3>Which field</h3>
@@ -198,17 +234,35 @@
         <p class="hint">Default = this iteration&rsquo;s shim CSV (optimizer export, insert search or OSII import). Its ring numbers are converted to axial z, and rotated back into the scanner&rsquo;s frame if B0 isn&rsquo;t already along +y.</p>
       </div>
       <div class="sub"><h3>What to run</h3><div id="verifierrun"></div>
-        <p class="hint">Independent magpylib model (no shared code with the Julia kernels), so agreement with the optimizer&rsquo;s ppm is a real cross-check. Needs Python packages from <code>Shimming_verifier/requirements.txt</code>. Also runs at the end of a full run when <code>run_python_verifier</code> is on.</p>
+        <p class="hint">Independent magpylib model (no shared code with the Julia kernels), so agreement with the optimizer&rsquo;s ppm is a real cross-check. Needs Python packages from <code>stages/stage4_verifier/Shimming_verifier/requirements.txt</code>. Also runs at the end of a full run when <code>run_python_verifier</code> is on.</p>
       </div>
     </div></div>
   </section>
 </main>
 
-<div id="runbar">
+<aside id="runbar">
   <div class="top"><strong>Run log</strong> <span id="runstatus" class="hint"></span><span class="grow"></span>
     <button id="stopbtn" class="stop" disabled>Stop</button><button id="clearlog">Clear</button></div>
   <pre id="log"></pre>
+</aside>
 </div>
+
+<footer class="folderbar">
+  <span class="lbl">Project</span>
+  <button data-open="root">Project root</button>
+  <span class="sep"></span><span class="lbl">Inputs</span>
+  <button data-open="measured">Measured scans</button>
+  <button data-open="osii">OSII layouts</button>
+  <span class="sep"></span><span class="lbl">Cache</span>
+  <button data-open="cache">Field maps</button>
+  <span class="sep"></span><span class="lbl">This iteration</span>
+  <button data-open="optimizer">Optimizer output</button>
+  <button data-open="viewers">Viewer GIFs</button>
+  <button data-open="verifier">Verifier output</button>
+  <button data-open="final">3D-print output</button>
+  <span class="sep"></span><span class="lbl">Assets</span>
+  <button data-open="assets">Base inserts</button>
+</footer>
 
 <script>
 const ENUMS={optimizer:["grad","sim_annealing"],pipeline_mode:["full","lcurve"],
@@ -357,7 +411,7 @@ function field(key){
   const lab=document.createElement('label');lab.textContent=key;lab.title=key;
   const el=inputFor(key,config[key]);el.dataset.key=key;el.id='f_'+key;
   row.append(lab,el);wrap.appendChild(row);
-  if(DESC[key]){const d=document.createElement('div');d.className='fdesc';d.textContent=DESC[key];wrap.appendChild(d);}
+  if(DESC[key]){const d=document.createElement('div');d.className='fdesc';d.textContent=DESC[key];d.title=DESC[key];wrap.appendChild(d);}
   return wrap;
 }
 // Live read-out of the dipole moment the optimizer will actually use, so the
@@ -620,7 +674,6 @@ async function streamStage(stage){
 }
 async function runSeq(csv){
   if(running)return;stopReq=false;setBusy(true);
-  document.getElementById('runbar').scrollIntoView({block:'nearest'});
   try{
     await saveConfig();
     document.getElementById('log').textContent='';
@@ -650,6 +703,25 @@ document.querySelectorAll('[data-apply]').forEach(b=>b.onclick=()=>applyPreset(b
 document.querySelectorAll('[data-saveas]').forEach(b=>b.onclick=()=>saveAsPreset(b.dataset.saveas,b.dataset.saveas==='geometry'?GEO_PRESET_KEYS:STAGE2_PRESET_KEYS));
 document.querySelectorAll('.iterbox').forEach(b=>b.addEventListener('input',e=>syncIter(e.target.value)));
 document.getElementById('iter-num').addEventListener('input',e=>{if(e.target.value!=='')config.iteration_number=Number(e.target.value);});
+// --- stage tabs (one stage visible at a time; no page scrolling) ---
+function showTab(id){
+  if(!document.getElementById(id))id='s0';
+  document.querySelectorAll('.stage').forEach(x=>x.classList.toggle('active',x.id===id));
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));
+  try{localStorage.setItem('boost.tab',id);}catch(_){}
+}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+function showSub(k){
+  document.querySelectorAll('#s0 .cols>.sub').forEach(x=>x.classList.toggle('hide',x.dataset.sub!==k));
+  document.querySelectorAll('#s0tabs button').forEach(b=>b.classList.toggle('active',b.dataset.sub===k));
+  try{localStorage.setItem('boost.sub0',k);}catch(_){}
+}
+document.querySelectorAll('#s0tabs button').forEach(b=>b.onclick=()=>showSub(b.dataset.sub));
+let _sub='data';try{_sub=localStorage.getItem('boost.sub0')||'data';}catch(_){}
+showSub(_sub);
+document.querySelectorAll('#s0 .hint,#s4 .hint,#s4 .fdesc').forEach(h=>h.title=h.textContent);   // clamped text stays readable on hover
+let _tab='s0';try{_tab=localStorage.getItem('boost.tab')||'s0';}catch(_){}
+showTab(_tab);
 loadAll().catch(e=>toast('Load failed: '+e.message,'err'));
 </script>
 </body>
