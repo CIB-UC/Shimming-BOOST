@@ -53,13 +53,13 @@
   .stagehead{display:flex;align-items:center;gap:12px;padding:11px 16px;background:transparent;border-bottom:1px solid var(--edge)}
   .stagehead .num{display:inline-flex;width:26px;height:26px;border-radius:50%;background:var(--acc);color:#0d0a0b;font-weight:700;align-items:center;justify-content:center;font-size:13px}
   .stagehead h2{font-size:15px;margin:0;font-weight:600}
-  .stagebody{padding:8px 12px;flex:1 1 auto;min-height:0;overflow:auto}   /* overflow = fallback only on very short windows */
-  .cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+  .stagebody{padding:10px 14px;flex:1 1 auto;min-height:0;overflow:auto}   /* a stage scrolls inside its own panel */
+  .cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px}
   .sub{background:var(--sub);border:1px solid var(--edge);border-radius:10px;padding:9px 12px}
   .sub h3{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:0 0 9px}
   .row{display:flex;align-items:center;gap:8px;margin:3px 0}
-  .row label{flex:0 0 48%;color:var(--fg);font-weight:600;font-size:12.5px;word-break:break-word}
-  .row input,.row select{flex:1;background:#fff;color:var(--fg);border:1px solid var(--edge);border-radius:6px;padding:4px 8px;font:inherit;min-width:0}
+  .row label{flex:0 0 auto;color:var(--fg);font-weight:600;font-size:12.5px;white-space:nowrap}   /* variable names never wrap */
+  .row input,.row select{flex:1 1 90px;background:#fff;color:var(--fg);border:1px solid var(--edge);border-radius:6px;padding:4px 8px;font:inherit;min-width:0}
   .row input[type=checkbox]{flex:0 0 auto;width:18px;height:18px;accent-color:var(--acc-deep)}
   .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
   .tasks{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
@@ -73,27 +73,33 @@
   #runbar{flex:0 0 clamp(270px,24vw,380px);min-height:0;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--edge);border-radius:10px;padding:8px 10px}
   #runbar .top{display:flex;align-items:center;gap:8px;margin:0 0 6px;flex-wrap:wrap}
   #log{flex:1 1 auto;min-height:0;margin:0;background:var(--sub);border:1px solid var(--edge);border-radius:8px;padding:6px 9px;overflow:auto;white-space:pre-wrap;word-break:break-word;font:11.5px/1.4 ui-monospace,Consolas,monospace;color:var(--fg)}
-  /* Stage 0 has ~25 fields: three sub-tabs, each laid out across the full width (no scrolling) */
-  .subtabs{display:flex;gap:6px;margin:0 0 8px}
-  .subtabs button{padding:5px 12px;font-size:12.5px;border-radius:999px;background:var(--sub);color:var(--mut);font-weight:600}
-  .subtabs button.active{background:var(--acc);border-color:var(--acc);color:#0d0a0b}
-  #s0 .cols>.sub.hide{display:none}
-  #s0 .cols{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start}
-  #s0 .cols>.sub[data-sub=geo],#s0 .cols>.sub[data-sub=adapter]{grid-column:1/-1}
-  #geofields,#adapterfields{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));column-gap:16px}
-  #s4 .cols{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));align-items:start}
-  #s4 .cols>.sub:nth-child(3){grid-column:1/-1}
-  #s4 .hint{-webkit-line-clamp:1}
-  #s4 .row{margin:2px 0}
-  #s4 .fdesc{margin-bottom:1px}
-  #verifierrun{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));column-gap:16px}
+  /* Stage groups: Optimize+OSII (s1) and Viewers+Verifier (s3) share one tab; panels sit side by side when wide */
+  .stagegroup{display:none;flex:1 1 auto;min-height:0;overflow:auto;gap:10px;align-items:start;align-content:start;grid-auto-rows:max-content;grid-template-columns:repeat(auto-fit,minmax(480px,1fr));padding:0}
+  .stagegroup.active{display:grid}
+  .stagegroup>.stage{display:flex;flex:none;border-radius:12px;overflow:visible}
+  .stagegroup>.stage .stagebody{overflow:visible}
+  /* stage 0: every panel visible; the stage scrolls vertically when it is taller than the window */
+  /* Optimize + OSII share a row; Inserts/STL takes the full row below with its panels side by side */
+  #s2{grid-column:1/-1}
+  /* Stage 1 and 1.5 sit side by side at equal height; Stage 1 a touch wider */
+  #s1{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);align-items:stretch}
+  #s1>#s2{align-self:start}
+  /* Viewers + ring placement (3) on the left, Python verifier (4) on the right, equal height */
+  #s3{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}
+  @media (max-width:1200px){#s1,#s3{grid-template-columns:minmax(0,1fr)}}
+  #s2 .stagebody>.cols{grid-template-columns:minmax(260px,1fr) 2.2fr;align-items:start}
+  #stage2fields{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+  #s0 .cols{grid-template-columns:minmax(300px,1fr) minmax(0,1.8fr);align-items:start}   /* Measured data (narrow) | Shim magnets (wide) */
+  #magnetfields{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));column-gap:16px}
+  #s0 .cols>.sub:nth-child(3),#s0 .cols>.sub:nth-child(4){grid-column:1/-1}
+  #geofields,#adapterfields{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));column-gap:16px}
+  #verifierrun{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));column-gap:16px}
   .spin{color:var(--acc-deep)}
-  .fdesc{font-size:11px;color:var(--mut);margin:-1px 0 3px 0;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}   /* full text on hover (title) */
-  #s0 .hint,#s4 .hint{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .fdesc{font-size:11px;color:var(--mut);margin:-1px 0 5px 0;line-height:1.3}
     .iterband label{color:var(--mut);font-size:13px}
   .iterband input{background:#fff;color:var(--fg);border:1px solid var(--edge);border-radius:6px;padding:7px 10px;font:inherit}
   .iterband input.name{flex:1;min-width:200px;font-size:15px;font-weight:600}
-  #ringplacement{overflow:auto;max-height:calc(100vh - 470px);min-height:60px}   /* long ring lists scroll inside the table, not the page */
+  #ringplacement{overflow:auto;max-height:300px}
   table.ring{width:100%;border-collapse:collapse;font-size:13px}
   table.ring th,table.ring td{text-align:left;padding:5px 9px;border-bottom:1px solid var(--edge)}
   table.ring th{color:var(--mut);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
@@ -124,11 +130,8 @@
 <!-- STAGE BUTTONS -->
 <nav class="tabs" id="tabs">
   <button data-tab="s0"><span class="n">0</span>Field map</button>
-  <button data-tab="s1"><span class="n">1</span>Optimize</button>
-  <button data-tab="s15"><span class="n">1.5</span>OSII import</button>
-  <button data-tab="s2"><span class="n">2</span>Inserts / STL</button>
-  <button data-tab="s3"><span class="n">3</span>Viewers</button>
-  <button data-tab="s4"><span class="n">4</span>Verifier</button>
+  <button data-tab="s1"><span class="n">1 · 1.5 · 2</span>Optimize / OSII import / Inserts</button>
+  <button data-tab="s3"><span class="n">3 · 4</span>Viewers / Verifier</button>
 </nav>
 
 <div class="workarea">
@@ -141,28 +144,28 @@
     <div class="stagehead"><span class="num">0</span><h2>Field map</h2><span class="grow"></span>
       <button id="run-stage0" class="primary runbtn">Prepare field map</button></div>
     <div class="stagebody">
-      <div class="subtabs" id="s0tabs"><button data-sub="data">Data &amp; magnets</button><button data-sub="geo">Geometry</button><button data-sub="adapter">Field adapter</button></div>
       <div class="cols">
-      <div class="sub" data-sub="data"><h3>Measured data</h3>
+      <div class="sub"><h3>Measured data</h3>
         <div class="row"><label>Use field map</label><select id="measured"></select></div>
         <div class="row"><label>Import CSV (full path)</label><input id="importpath" placeholder="C:\path\to\scan.csv"/></div>
         <div class="actions"><button id="importbtn" class="presetbtn">Import into data folder</button></div>
         <p class="hint">Copies into <code>data/inputs/Measured_Field_Data_csv/</code>, then pick it above.</p>
       </div>
-      <div class="sub" data-sub="geo"><h3>Geometry</h3>
+      <div class="sub"><h3>Shim magnets</h3><div id="magnetfields"></div>
+        <p class="hint" id="muhint"></p>
+      </div>
+      <div class="sub"><h3>Geometry</h3>
         <div class="row"><label>Preset</label><select id="geopreset"></select></div>
         <div class="actions"><button class="presetbtn" data-apply="geometry">Apply preset</button><button class="presetbtn" data-saveas="geometry">Save as new…</button></div>
         <div id="geofields" style="margin-top:8px"></div>
       </div>
-      <div class="sub" data-sub="adapter"><h3>Field adapter</h3><div id="adapterfields"></div></div>
-      <div class="sub" data-sub="data"><h3>Shim magnets</h3><div id="magnetfields"></div>
-        <p class="hint" id="muhint"></p>
-      </div>
+      <div class="sub"><h3>Field adapter</h3><div id="adapterfields"></div></div>
     </div></div>
   </section>
 
   <!-- STAGE 1 -->
-  <section class="stage" id="s1">
+  <div class="stagegroup" id="s1">
+  <section class="stage" id="s1a">
     <div class="stagehead"><span class="num">1</span><h2>Optimize</h2><span class="grow"></span>
       <button data-run="eval" class="runbtn">Compare metrics</button>
       <button id="run-stage1" class="primary runbtn">Run optimization</button></div>
@@ -189,7 +192,6 @@
     </div></div>
   </section>
 
-  <!-- STAGE 2 -->
   <section class="stage" id="s2">
     <div class="stagehead"><span class="num">2</span><h2>Inserts / STL</h2><span class="grow"></span>
       <button data-run="stl" class="runbtn">Build STL only</button>
@@ -200,12 +202,16 @@
         <div class="actions"><button class="presetbtn" data-apply="stage2">Apply preset</button><button class="presetbtn" data-saveas="stage2">Save as new…</button></div>
         <p class="hint">V1/V2 are starting points — edit and “Save as new…” to add your own.</p>
       </div>
-      <div class="sub" style="grid-column:span 3"><h3>Insert parameters (mm)</h3><div id="stage2fields" class="cols"></div></div>
+      <div class="sub" ><h3>Insert parameters (mm)</h3><div id="stage2fields" class="cols"></div></div>
     </div></div>
   </section>
+  </div>
+
+  <!-- STAGE 2 -->
 
   <!-- STAGE 3 -->
-  <section class="stage" id="s3">
+  <div class="stagegroup" id="s3">
+  <section class="stage" id="s3a">
     <div class="stagehead"><span class="num">3</span><h2>Viewers &amp; ring placement</h2><span class="grow"></span>
       <button data-run="viewer_3d" class="runbtn">Open 3D viewer</button>
       <button data-run="viewer_slice" class="runbtn">Open slice viewer</button></div>
@@ -213,7 +219,7 @@
       <div class="sub"><h3>Viewers (full-run toggles)</h3><div id="viewerfields"></div>
         <p class="hint">Both viewers also open with <b>no shim solution</b> — after Stage 0 alone they show the measured field (pre-shim) so you can inspect it before optimizing.</p>
       </div>
-      <div class="sub" style="grid-column:span 2"><h3>Ring placement — where each printed ring goes</h3>
+      <div class="sub" style="grid-column:1/-1"><h3>Ring placement — where each printed ring goes</h3>
         <div id="ringplacement"></div>
         <p class="hint">Each <code>Ring_N</code> folder of inserts mounts at the axial slot below. “Trays filled” reads the shim CSV on disk, so a sparse layout (insert search / OSII import) shows exactly which trays carry magnets. Refreshes after each run.</p>
       </div>
@@ -238,6 +244,7 @@
       </div>
     </div></div>
   </section>
+  </div>
 </main>
 
 <aside id="runbar">
@@ -705,21 +712,12 @@ document.querySelectorAll('.iterbox').forEach(b=>b.addEventListener('input',e=>s
 document.getElementById('iter-num').addEventListener('input',e=>{if(e.target.value!=='')config.iteration_number=Number(e.target.value);});
 // --- stage tabs (one stage visible at a time; no page scrolling) ---
 function showTab(id){
-  if(!document.getElementById(id))id='s0';
-  document.querySelectorAll('.stage').forEach(x=>x.classList.toggle('active',x.id===id));
+  if(!document.querySelector('main>#'+id))id='s0';
+  document.querySelectorAll('main>.stage,main>.stagegroup').forEach(x=>x.classList.toggle('active',x.id===id));
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));
   try{localStorage.setItem('boost.tab',id);}catch(_){}
 }
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
-function showSub(k){
-  document.querySelectorAll('#s0 .cols>.sub').forEach(x=>x.classList.toggle('hide',x.dataset.sub!==k));
-  document.querySelectorAll('#s0tabs button').forEach(b=>b.classList.toggle('active',b.dataset.sub===k));
-  try{localStorage.setItem('boost.sub0',k);}catch(_){}
-}
-document.querySelectorAll('#s0tabs button').forEach(b=>b.onclick=()=>showSub(b.dataset.sub));
-let _sub='data';try{_sub=localStorage.getItem('boost.sub0')||'data';}catch(_){}
-showSub(_sub);
-document.querySelectorAll('#s0 .hint,#s4 .hint,#s4 .fdesc').forEach(h=>h.title=h.textContent);   // clamped text stays readable on hover
 let _tab='s0';try{_tab=localStorage.getItem('boost.tab')||'s0';}catch(_){}
 showTab(_tab);
 loadAll().catch(e=>toast('Load failed: '+e.message,'err'));
