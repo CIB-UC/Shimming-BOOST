@@ -39,7 +39,7 @@ include(joinpath(@__DIR__, "..", "..", "pipeline_config.jl"))   # paths (optimiz
 # This script writes EVERY magnet of every ring in positions_in_tray_new_wished.
 # stages/stage1_optimize/grad_optim/insert_search.jl instead writes a SPARSE shim CSV (only the inserts it
 # chose) and leaves a marker describing it. A `run_pipeline.jl` full run, or the GUI
-# "Export + build STL" button, would otherwise silently replace e.g. 6 chosen inserts
+# "Export shim CSV" button, would otherwise silently replace e.g. 6 chosen inserts
 # with all 48 of those rings — and you would print the wrong thing with no error.
 # The marker is honoured only while it still describes the file actually on disk, so
 # it self-clears the moment any other stage legitimately rewrites the CSV.
@@ -62,7 +62,7 @@ let marker = joinpath(optimizer_iter_dir, "SPARSE_LAYOUT.marker")
             positions_in_tray_new_wished, which would replace that layout with a dense
             one and print far more inserts than the search selected.
 
-            -> To build THIS layout:      Stage 2 "Build STL only"  (julia CSV_to_STL.jl)
+            -> To build THIS layout:      Stage 2 "Build STL"  (julia CSV_to_STL.jl)
             -> To go back to a dense run: delete
                    $(marker)
                then re-run Stage 1 ("Grad build+solve") before exporting.

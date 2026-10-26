@@ -85,7 +85,7 @@ failure. `start_stage` lets you jump in and reuse earlier outputs.
 
 **Two shortcuts that skip the optimizer:** `osii_to_shim.jl` converts an existing
 **OSII** magnet layout straight into the Stage-1.5 shim CSV (then Stage 2 runs as usual —
-GUI button "Build STL only"), and both **Stage-3 viewers run with no shim CSV** — after
+GUI button "Build STL"), and both **Stage-3 viewers run with no shim CSV** — after
 Stage 0 alone they show just the measured field (pre-shim) for homogeneity inspection.
 
 ### Stage 4 — independent Python verifier (`Shimming_verifier/`)
@@ -397,7 +397,7 @@ light-green themed palette (`--bg`/`--acc`/etc. in `app.html`'s `<style>`).
   optimize / SA L-curve / Ring search / Insert search — each shows only its
   parameters; SA hides in shell mode), **Stage 1.5** (OSII import: pick an OSII file
   + angle offset/invert → shim CSV), **Stage 2** (insert preset + params — including
-  `letter_thickness` and `label_scale`, both editable — with **Build STL only** for
+  `letter_thickness` and `label_scale`, both editable — with **Build STL** for
   the OSII / no-optimizer path), **Stage 3** (viewers with **Save GIF** buttons,
   open-folder, and a **ring-placement table** showing where each printed
   `Ring_<InsertPos>` (e.g. `Ring_N07`) mounts *and which trays actually carry
@@ -498,7 +498,7 @@ Companion doc (in the repo root):
 - Shell-based evaluation; native Controlled-CSV reading with auto direction.
 - **OSII import** (`osii_to_shim.jl`): convert an external OSII magnet layout into the
   Stage-1.5 shim CSV (frame remap, metres→mm, angle inverted + 90° offset), skipping
-  Stages 0–1; GUI "Build STL only" feeds it to Stage 2. Iteration name/number carry
+  Stages 0–1; GUI "Build STL" feeds it to Stage 2. Iteration name/number carry
   through to the printed inserts.
 - **Measured-shell scoring** (`shell_source = "measured"`, now default): score the raw
   measured points, not the SH-smoothed resample (~200 ppm more honest on the ref scan).
@@ -563,7 +563,7 @@ field +x → θ = 2φ, field +y → θ = 2φ − 90° (φ = polar angle of the m
 `--slot_center` takes consecutive *real* slots (slot 0 is skipped). Warns if `config.toml`'s geometry
 differs from the chosen preset. To build STLs from such a CSV: put it at
 `data/outputs/Optimizer_Output_per_Iteration/<ITER>/<ITER>_shim.csv` under a **new** iteration name and click
-**Build STL only** (never "Export + build STL" — it needs an optimizer result and would overwrite it).
+**Build STL** (never "Export shim CSV" — it needs an optimizer result and would overwrite it).
 
 ### Known gaps vs. the Shimmer / OSII² preprint (arXiv 2608.22351; reviewed, NOT implemented)
 

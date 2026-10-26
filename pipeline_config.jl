@@ -141,7 +141,14 @@ const tray_slot_spacing_mm  = Float64(_getdef("tray_slot_spacing_mm", 10.0))
 const front_tray_shift_mm   = Float64(_getdef("front_tray_shift_mm", 10.0))
 const back_tray_shift_mm    = Float64(_getdef("back_tray_shift_mm",  10.0))
 const positions_in_tray_occupied   = _intvec("positions_in_tray_occupied")
-const positions_in_tray_new_wished = _intvec("positions_in_tray_new_wished")
+# Rings that are already filled can never receive new magnets: drop them from the wished list
+# (loudly), so setup, the optimizer, export_csv and the viewers all see the same free rings.
+# (The ring search / insert search apply the same rule to their candidate ranges.)
+const positions_in_tray_new_wished = let w = _intvec("positions_in_tray_new_wished")
+    clash = [t for t in w if t in positions_in_tray_occupied]
+    isempty(clash) || @warn "positions_in_tray_new_wished contains rings that are listed as occupied — skipping them" skipped = clash
+    [t for t in w if !(t in positions_in_tray_occupied)]
+end
 const Rmin = _flt("Rmin")
 const Rmax = _flt("Rmax")
 

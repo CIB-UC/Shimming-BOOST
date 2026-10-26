@@ -168,6 +168,7 @@
   <section class="stage" id="s1a">
     <div class="stagehead"><span class="num">1</span><h2>Optimize</h2><span class="grow"></span>
       <button data-run="eval" class="runbtn">Compare metrics</button>
+      <button data-run="export" class="runbtn" title="Optimizer result → shim CSV (the seam into Stage 2). Not for OSII imports.">Export shim CSV</button>
       <button id="run-stage1" class="primary runbtn">Run optimization</button></div>
     <div class="stagebody">
       <div class="tasks" id="tasks"></div>
@@ -187,15 +188,14 @@
         <p class="hint">Copies into <code>data/inputs/OSII_shimming_outputs_toconvert/</code>, then pick it above.</p>
       </div>
       <div class="sub"><h3>Transform</h3><div id="osiifields"></div>
-        <p class="hint">Skips Stage 0 &amp; 1: writes <code>&lt;iteration&gt;_shim.csv</code> straight from the OSII file (our X = their x, Y = their z, Z = −their y; metres→mm; angle inverted + offset). Then in Stage 2 use <b>Build STL only</b> — <i>not</i> Export + build STL (Export re-runs the optimizer seam and needs a solver result the OSII path doesn't create). Iteration name/number carry through to the final folder &amp; engraved inserts.</p>
+        <p class="hint">Skips Stage 0 &amp; 1: writes <code>&lt;iteration&gt;_shim.csv</code> straight from the OSII file (our X = their x, Y = their z, Z = −their y; metres→mm; angle inverted + offset). Then in Stage 2 use <b>Build STL</b> — <i>not</i> <b>Export shim CSV</b> in Stage 1 (Export re-runs the optimizer seam and needs a solver result the OSII path doesn't create). Iteration name/number carry through to the final folder &amp; engraved inserts.</p>
       </div>
     </div></div>
   </section>
 
   <section class="stage" id="s2">
     <div class="stagehead"><span class="num">2</span><h2>Inserts / STL</h2><span class="grow"></span>
-      <button data-run="stl" class="runbtn">Build STL only</button>
-      <button data-run="export,stl" class="primary runbtn">Export + build STL</button></div>
+      <button data-run="stl" class="primary runbtn">Build STL</button></div>
     <div class="stagebody"><div class="cols">
       <div class="sub"><h3>Setting</h3>
         <div class="row"><label>Preset</label><select id="s2preset"></select></div>
@@ -553,7 +553,7 @@ function renderTaskHint(){
     : '<b>'+n+'</b> full insert'+(n===1?'':'s')+' of <b>'+mps+'</b> magnets'
       + (left?(' &nbsp;(<b>'+left+'</b> left over, not placed &mdash; inserts are never partially filled)'):'')
       + '. Places one insert at a time, freezing its angles before searching the next.'
-      + ' Writes a <b>sparse</b> shim CSV &rarr; afterwards use Stage 2 <b>&ldquo;Build STL only&rdquo;</b>.';
+      + ' Writes a <b>sparse</b> shim CSV &rarr; afterwards use Stage 2 <b>&ldquo;Build STL&rdquo;</b>.';
 }
 function renderAll(){
   document.getElementById('iterlabel').textContent='— '+config.iteration+' · optimizer: '+config.optimizer;

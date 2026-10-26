@@ -10,6 +10,13 @@
 # so nothing downstream changes, and the iteration name/number (from config.toml)
 # flow straight through to the final 3D-printing folder + engraved insert labels.
 
+# INPUT FORMATS (auto-detected from the column names):
+#   OSII   pos_x_m, pos_y_m, pos_z_m, rotation_deg   → remapped to the BOOST frame (below)
+#   BOOST  X (mm), Y (mm), Z (mm), Angle (deg)       → already in the BOOST frame: pass-through
+#          (e.g. export_csv.jl's *_shim_xyz.csv; no remap / unit change / angle offset;
+#           RingNumber is derived from Z exactly as for OSII files)
+#   seam   X (mm), Y (mm), RingNumber, Angle (deg)   → copied as-is
+#
 # ── Frame transform (OSII → BOOST), per the project's axis convention ──────────
 #     BOOST X  =  OSII x    ( pos_x )
 #     BOOST Y  =  OSII z    ( pos_z )      ← in-plane circle (radius = shim_radius_mm)
@@ -37,6 +44,7 @@ import Pkg
 Pkg.activate(joinpath(@__DIR__, "..", ".."))
 
 include(joinpath(@__DIR__, "..", "..", "pipeline_config.jl"))   # osii_input_path, shim_csv_path, shim_radius_mm, geometry
+include(joinpath(@__DIR__, "..", "..", "core", "utils", "pos_trays.jl"))   # ringpos_from_tray_mm (seam-format input)
 using CSV, DataFrames, Dates
 
 """
@@ -52,18 +60,43 @@ function osii_to_shim(in_csv::AbstractString, out_csv::AbstractString;
                             "and set osii_input_name in config.toml.")
     src = CSV.read(in_csv, DataFrame)
 
-    for c in ("pos_x_m", "pos_y_m", "pos_z_m", "rotation_deg")
-        c in names(src) || error("OSII CSV is missing column '$(c)'.\n" *
-                                 "    columns found: $(names(src))")
-    end
+    # --- which kind of file is this? -------------------------------------------
+    #  :osii   pos_x_m, pos_y_m, pos_z_m, rotation_deg  → remap OSII frame → BOOST
+    #  :boost  X (mm), Y (mm), Z (mm), Angle (deg)      → ALREADY in the BOOST frame
+    #          (e.g. export_csv.jl's *_shim_xyz.csv): NO axis remap, NO unit change,
+    #          NO angle inversion/offset — X, Y, Angle are written exactly as given.
+    #  :seam   X (mm), Y (mm), RingNumber, Angle (deg)  → already the seam format;
+    #          copied as-is (RingNumber is the real InsertPos).
+    cols = names(src)
+    kind = all(c -> c in cols, ("pos_x_m", "pos_y_m", "pos_z_m", "rotation_deg")) ? :osii :
+           all(c -> c in cols, ("X (mm)", "Y (mm)", "Z (mm)", "Angle (deg)"))     ? :boost :
+           all(c -> c in cols, ("X (mm)", "Y (mm)", "RingNumber", "Angle (deg)")) ? :seam  :
+           error("Unrecognised CSV columns: $(cols)
+" *
+                 "    expected OSII columns   pos_x_m, pos_y_m, pos_z_m, rotation_deg
+" *
+                 "          or BOOST columns  X (mm), Y (mm), Z (mm), Angle (deg)
+" *
+                 "          or seam columns   X (mm), Y (mm), RingNumber, Angle (deg)")
 
-    # --- frame transform (OSII → BOOSTs) ---------------------------------------
-    X   =  1000.0 .* Float64.(src[!, "pos_x_m"])        # BOOST X = OSII x   (mm)
-    Y   =  1000.0 .* Float64.(src[!, "pos_z_m"])        # BOOST Y = OSII z   (mm)
-    Zax = -1000.0 .* Float64.(src[!, "pos_y_m"])        # BOOST Z = −OSII y  (mm, axial)
-    rot = Float64.(src[!, "rotation_deg"])
-    rot = invert_angle ? -rot : rot                     # BOOST angle axis (+Z) = −OSII y ⇒ twist flips sign
-    Ang = mod.(rot .+ Float64(angle_offset_deg), 360.0)
+    if kind === :osii
+        # --- frame transform (OSII → BOOST) ------------------------------------
+        X   =  1000.0 .* Float64.(src[!, "pos_x_m"])    # BOOST X = OSII x   (mm)
+        Y   =  1000.0 .* Float64.(src[!, "pos_z_m"])    # BOOST Y = OSII z   (mm)
+        Zax = -1000.0 .* Float64.(src[!, "pos_y_m"])    # BOOST Z = −OSII y  (mm, axial)
+        rot = Float64.(src[!, "rotation_deg"])
+        rot = invert_angle ? -rot : rot                 # BOOST angle axis (+Z) = −OSII y ⇒ twist flips sign
+        Ang = mod.(rot .+ Float64(angle_offset_deg), 360.0)
+        println("Input format: OSII (pos_x_m/pos_y_m/pos_z_m) → remapping axes OSII → BOOST, metres → mm.")
+    else
+        # --- pass-through: file is already in the BOOST frame --------------------
+        X   = Float64.(src[!, "X (mm)"])
+        Y   = Float64.(src[!, "Y (mm)"])
+        Ang = Float64.(src[!, "Angle (deg)"])
+        Zax = kind === :boost ? Float64.(src[!, "Z (mm)"]) : Float64[]
+        println("Input format: ", kind === :boost ? "BOOST X/Y/Z (mm)" : "BOOST seam (X, Y, RingNumber)",
+                " → already in the BOOST frame: pass-through, NO axis remap / unit change / angle offset.")
+    end
 
     # --- rings: recover the REAL, physical InsertPos from the measured axial
     # position, by inverting pos_trays.jl's ringpos_from_tray_mm:
@@ -83,10 +116,18 @@ function osii_to_shim(in_csv::AbstractString, out_csv::AbstractString;
         return n, resid
     end
 
-    zkey        = round.(Zax; digits = 3)                    # collapse FP noise before inverting
-    inv         = insertpos_from_z.(zkey)
-    Ring        = first.(inv)
-    resid       = last.(inv)
+    if kind === :seam
+        Ring  = round.(Int, Float64.(src[!, "RingNumber"]))   # already the real InsertPos
+        resid = zeros(length(Ring))
+        Zax   = ringpos_from_tray_mm(Ring; tray_slot_spacing_mm = tray_slot_spacing_mm,
+                                     front_tray_shift_mm = front_tray_shift_mm,
+                                     back_tray_shift_mm = back_tray_shift_mm)
+    else
+        zkey  = round.(Zax; digits = 3)                  # collapse FP noise before inverting
+        inv   = insertpos_from_z.(zkey)
+        Ring  = first.(inv)
+        resid = last.(inv)
+    end
     maxresid    = isempty(resid) ? 0.0 : maximum(abs.(resid))
     if maxresid > tray_slot_spacing_mm / 2
         @warn "OSII axial position doesn't line up with the configured tray geometry " *
@@ -117,8 +158,9 @@ function osii_to_shim(in_csv::AbstractString, out_csv::AbstractString;
     CSV.write(out_csv, df)
     println("Wrote ", out_csv, "\n  (", nrow(df), " magnets, ", length(zsort),
             " ring(s) at InsertPos ", join(sort(unique(Ring)), ", "),
-            "; angle ", invert_angle ? "−rot" : "+rot", " + ", angle_offset_deg,
-            "°, mean radius ", round(meanR, digits = 1), " mm)")
+            "; ", kind === :osii ? string("angle ", invert_angle ? "−rot" : "+rot", " + ", angle_offset_deg, "°") :
+                                   "angle as given",
+            ", mean radius ", round(meanR, digits = 1), " mm)")
     return out_csv
 end
 
@@ -126,8 +168,8 @@ osii_to_shim(osii_input_path, shim_csv_path)
 
 # --- protect this CSV from export_csv.jl -------------------------------------
 # The OSII path deliberately skips Stages 0–1, so there is NO optimizer-result
-# jld2 describing it. A `run_pipeline.jl` full run, or the GUI "Export + build
-# STL" button, calls export_csv.jl — which would either crash on the missing
+# jld2 describing it. A `run_pipeline.jl` full run, or the GUI "Export shim CSV"
+# button, calls export_csv.jl — which would either crash on the missing
 # result or, worse, silently rebuild the CSV from a STALE result left in this
 # iteration folder by an earlier run. Either way the layout you imported is gone.
 # This marker makes export_csv refuse with an explanation instead. It records the
@@ -139,4 +181,4 @@ open(joinpath(optimizer_iter_dir, "SPARSE_LAYOUT.marker"), "w") do io
     println(io, "magnets = ", countlines(shim_csv_path) - 1)
     println(io, "bytes = ", filesize(shim_csv_path))
 end
-println("Marked as an imported layout → Stage 2 \"Build STL only\".")
+println("Marked as an imported layout → Stage 2 \"Build STL\".")

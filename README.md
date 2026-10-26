@@ -128,7 +128,7 @@ use fewer magnets *and* get a better field.
 5. Click **"Run optimization."** Watch the log: one line per insert, showing where it
    went and the score afterwards.
 6. When it finishes, read the **BEST PREFIX** line — that is what it kept.
-7. Go to **"2 — Inserts / STL"** and click **"Build STL only."**
+7. Go to **"2 — Inserts / STL"** and click **"Build STL."**
 
 ### Where to see what it decided
 
@@ -192,20 +192,23 @@ Both are adjustable right in the web page, so a fix is a click away — no code.
    **"Import CSV (full path)"** and click **"Import into OSII folder"** — then pick it.)
 5. Leave the **Transform** settings at their defaults the first time (invert on, offset 90).
 6. Click **"Convert OSII → shim CSV."**
-7. Go to the box labelled **"2 — Inserts / STL"** and click **"Build STL only."**
+7. Go to the box labelled **"2 — Inserts / STL"** and click **"Build STL."**
 8. Your printable trays appear in the output folder, named with your iteration.
 
-### Important: which Stage 2 button to press
+### Important: do not press "Export shim CSV" after an OSII import
 
-Stage 2 has **two** buttons:
+"Export shim CSV" lives in the **"1 · 1.5 · 2"** tab, in the **Optimize** box, next to
+"Run optimization". It turns an optimizer result into the magnet list, so use it only
+after you've run our optimizer.
 
-- **"Build STL only"** — use this after an OSII import (the magnet list already exists).
-- **"Export + build STL"** — use this only after you've run our optimizer.
+Stage 2 now has a single button, **"Build STL"**, which builds the printable trays from the
+magnet list that is already on disk — whether that list came from the optimizer (after
+"Export shim CSV"), from an insert search, or from an OSII import.
 
-If you press "Export + build STL" after an OSII import, it will fail with a
-"file not found" error — because that button first tries to export an optimizer result
-that doesn't exist (you skipped the optimizer on purpose). **After OSII import, always
-use "Build STL only."**
+If you press "Export shim CSV" after an OSII import, it will stop with an explanation
+(or fail with a "file not found" error) — because it first tries to export an optimizer
+result that doesn't exist (you skipped the optimizer on purpose). **After an OSII import,
+go straight to "Build STL."**
 
 ---
 
@@ -472,7 +475,7 @@ viewers and the export step themselves have not been run since this change.
 viewers and the Python check whether directions come out as expected. You choose the OSII version (OSII2: field
 +y, OSII1: field +x), which tray(s), where along the bore (a z in mm, or a slot number) and how many
 positions (an odd number). To make STLs from it: copy it into a **new** iteration folder as `<iteration>_shim.csv`
-and use **Build STL only**.
+and use **Build STL**.
 
 ## 10. Glossary
 

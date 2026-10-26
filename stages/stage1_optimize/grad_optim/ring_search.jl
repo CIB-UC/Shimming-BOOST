@@ -39,7 +39,9 @@ const CONFIGTOML = joinpath(ROOT, "config.toml")
 
 # --- candidate rings (integer tray numbers), 0 excluded ----------------------
 const lo, hi   = ring_search_range[1], ring_search_range[2]
-const candidates = [t for t in lo:ring_search_step:hi if t != 0]
+const candidates = [t for t in lo:ring_search_step:hi if t != 0 && !(t in positions_in_tray_occupied)]   # occupied rings are never candidates
+isempty([t for t in lo:ring_search_step:hi if t in positions_in_tray_occupied]) ||
+    println("Occupied rings excluded from the candidates: ", [t for t in lo:ring_search_step:hi if t in positions_in_tray_occupied])
 const Ncand    = length(candidates)
 const cand_z   = [ringpos_from_tray_mm([t]; tray_slot_spacing_mm = tray_slot_spacing_mm,
                                             front_tray_shift_mm  = front_tray_shift_mm,

@@ -77,7 +77,9 @@ mkpath(dirname(OPCACHE))
 
 # --- candidate rings (integer tray numbers), 0 excluded ----------------------
 const lo, hi     = insert_search_range[1], insert_search_range[2]
-const candidates = [t for t in lo:insert_search_step:hi if t != 0]
+const candidates = [t for t in lo:insert_search_step:hi if t != 0 && !(t in positions_in_tray_occupied)]   # occupied rings are never candidates
+isempty([t for t in lo:insert_search_step:hi if t in positions_in_tray_occupied]) ||
+    println("Occupied rings excluded from the candidates: ", [t for t in lo:insert_search_step:hi if t in positions_in_tray_occupied])
 const Ncand      = length(candidates)
 isempty(candidates) && error("insert_search_range = $(insert_search_range) yields no candidate rings.")
 
@@ -387,7 +389,7 @@ for p in sort(chosen, by = q -> (q.ring, q.tray))
     end
 end
 # Rotate back into the scan's frame (shim_csv_frame = "scan"), exactly as export_csv.jl does, so the
-# sparse CSV and a later "Export + build STL" regeneration agree. The placement plan printed above
+# sparse CSV and a later "Export shim CSV" regeneration agree. The placement plan printed above
 # uses optimizer-frame tray numbers; Stage 2 re-derives the tray from the rotated (x,y).
 include(joinpath(@__DIR__, "..", "..", "..", "core", "utils", "viewer_frame.jl"))
 if shim_csv_frame == "scan"
@@ -412,7 +414,7 @@ println("Shim CSV → ", local_csv, "  (", nrow(shim_df), " magnets, ",
 # Apply: publish the shim CSV at the Stage-2 seam and record the rings used.
 # NOTE: no optimizer-result jld2 is written — a sparse per-insert layout cannot be
 # expressed in that format (it assumes every tray of every wished ring is filled).
-# So Stage 2 must be run with "Build STL only", NOT "Export + build STL".
+# So build the STLs with Stage 2 "Build STL" (Export shim CSV also works now, see below).
 # ---------------------------------------------------------------------------
 if insert_search_apply
     mkpath(dirname(shim_csv_path))
@@ -422,7 +424,7 @@ if insert_search_apply
     # expressible in the normal result format: 1 = insert placed here, 0 = empty slot.
     # Writing it means utils/eval_metrics.jl can score this run like any other, and
     # export_csv.jl reproduces exactly this sparse CSV instead of a dense one — so a
-    # full pipeline run or "Export + build STL" is now safe rather than destructive.
+    # full pipeline run or "Export shim CSV" is now safe rather than destructive.
     # Magnet order matches setup.jl: ring-major (over the rings we just wrote to
     # positions_in_tray_new_wished, in THAT ARRAY'S order — best_rings is already
     # sorted ascending, and pos_trays.jl's loop preserves array order unchanged),
@@ -462,7 +464,7 @@ if insert_search_apply
     open(CONFIGTOML, "w") do io; for ln in lines; println(io, ln); end; end
     println("Applied: positions_in_tray_new_wished = ", best_rings)
     println("Published shim CSV → ", shim_csv_path)
-    println("\nNext: Stage 2 → \"Build STL only\". \"Export + build STL\" also works now —")
+    println("\nNext: Stage 2 → \"Build STL\". \"Export shim CSV\" also works now —")
     println("      export_csv.jl honours final_state, so it rebuilds this same sparse CSV.")
 else
     println("\ninsert_search_apply = false → nothing published. Set it true (or copy")
