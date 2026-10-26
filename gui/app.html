@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>BOOST — Shimming Pipeline</title>
+<title>BOOSTer - B0 Optimization Shimming Pipeline</title>
 <style>
   :root{
-    /* ---- BOOST palette v2 (light-green variant) ---- */
-    --bg:#eaf3df;         /* page background — soft green tint (from #59971F) */
+    /* ---- BOOST palette v3 (blue variant: 2f6690 3a7ca5 d9dcd6 16425b 81c3d7) ---- */
+    --bg:#d3e2e8;         /* page background — Alabaster Grey nudged toward Sky Blue */
     --panel:#ffffff;      /* stage card background */
-    --sub:#f2f8ea;        /* nested sub-panel background — lighter green tint */
-    --edge:#c9dfb4;       /* borders/dividers — green-tinted */
+    --sub:#e7f1f5;        /* nested sub-panel background — pale Sky Blue */
+    --edge:#a3c6d6;       /* borders/dividers — Sky Blue tint */
     --fg:#0d0a0b;         /* primary text */
-    --mut:#454955;        /* secondary/muted text */
-    --acc:#72b01d;        /* lighter highlight (badges, active tab, hover) */
-    --acc-dark:#59971f;   /* main accent — buttons, links, primary actions */
-    --acc-deep:#3f7d20;   /* deepest green — primary-button hover, strong emphasis */
-    --ok:#3f7d20;
+    --mut:#3d5668;        /* secondary/muted text — blue-slate */
+    --acc:#81c3d7;        /* lighter highlight (badges, active tab, hover) — Sky Blue */
+    --acc-dark:#3a7ca5;   /* main accent — buttons, links, primary actions — Cerulean */
+    --acc-deep:#2f6690;   /* deeper blue — primary-button hover, strong emphasis — Baltic Blue */
+    --ok:#2f6690;
     --err:#c0392b;
   }
   *{box-sizing:border-box}
@@ -25,7 +25,7 @@
   header{padding:7px 16px;border-bottom:1px solid var(--edge);display:flex;align-items:center;gap:14px;background:var(--panel);flex:0 0 auto}
   header .logo{width:32px;height:32px;border-radius:9px;background:var(--acc-dark);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:0 0 auto;letter-spacing:-.02em}
   header .titles{display:flex;flex-direction:column;line-height:1.25}
-  header h1{font-size:16px;margin:0;font-weight:700;color:var(--fg)}
+  header h1{font-size:16px;margin:0;font-weight:700;color:#16425b}
   header .subtitle{font-size:11.5px;color:var(--mut)}
   .grow{flex:1}
   button{background:#fff;color:var(--fg);border:1px solid var(--edge);border-radius:7px;padding:7px 12px;cursor:pointer;font-size:13px}
@@ -65,7 +65,7 @@
   .tasks{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
   .tasks button.active{background:var(--acc);border-color:var(--acc);color:#0d0a0b;font-weight:600}
   #toast{padding:8px 12px;border-radius:7px;font-size:13px;display:none;background:var(--panel)}
-  #toast.ok{display:block;background:rgba(63,125,32,.12);color:var(--acc-deep);border:1px solid var(--acc-deep)}
+  #toast.ok{display:block;background:rgba(47,102,144,.12);color:var(--acc-deep);border:1px solid var(--acc-deep)}
   #toast.err{display:block;background:rgba(192,57,43,.1);color:var(--err);border:1px solid var(--err)}
   .hint{color:var(--mut);font-size:12px;margin:4px 0 0}
   code{background:var(--sub);border:1px solid var(--edge);padding:1px 5px;border-radius:4px}
