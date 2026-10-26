@@ -29,9 +29,9 @@ shell_source = "measured"
 shell_n_points = 2000   # points on the Rmax shell when shell_source = "sh_fibonacci"
 
 # --- iteration identity ------------------------------------------------------
-iteration = "07102026_UCScanner_FirstShimming"
-iteration_number = 2   # engraved on insert labels
-measured_fieldmap_name = "07102026_UCScanner_FirstShim_2rings.csv"
+iteration = "24102026_UCScanner_AllInOne_6ringShim"
+iteration_number = 4   # engraved on insert labels
+measured_fieldmap_name = "23102026_UCScanner_NoShim_Try2.csv"
 main_field_direction = "auto"   # "+x"|"-x"|"+y"|"-y"|"auto"  (auto detects from the measured field vector — Controlled scans only)
 
 # --- shared geometry (BOOST + insert generator) ------------------------------
@@ -55,8 +55,8 @@ tray_slot_spacing_mm = 10
 front_tray_shift_mm = 0
 back_tray_shift_mm = 0
 
-positions_in_tray_occupied = [-2, 2]   # rings already filled
-positions_in_tray_new_wished = [-4, 4]
+positions_in_tray_occupied = []   # rings already filled
+positions_in_tray_new_wished = [-13, -3, -2, 2, 3, 13]
 Rmin = 0   # homogeneity shell (mm)
 Rmax = 100
 
@@ -140,11 +140,11 @@ sh_measured_unit_mm = 1
 sh_degree = 8
 sh_select = "all"   # which spherical-harmonic coefficients build the field map: "all" | "first_n" | "top_k" (see below)
 sh_use_degree = 4   # sh_select = "first_n": keep degrees 0..this (1 <= n <= sh_degree)
-sh_top_k = 5   # sh_select = "top_k": keep the mean + this many largest |a(n,m)| (n>=1). Also the length of the "largest coefficients" list printed at Stage 0
+sh_top_k = 8   # sh_select = "top_k": keep the mean + this many largest |a(n,m)| (n>=1). Also the length of the "largest coefficients" list printed at Stage 0
 sh_grid_n = 41   # SH viewer-grid points/axis over ±Rmax; 41 over ±100 mm = 5 mm spacing (was 21 = 10 mm)
 
 # --- ring search: find the best n rings to place -----------------------------
-ring_search_n = 2   # rings to place (method "paired": the TOTAL, must be even -> n/2 pairs)
+ring_search_n = 6   # rings to place (method "paired": the TOTAL, must be even -> n/2 pairs)
 ring_search_n_max = 8   # hard cap on n
 ring_search_method = "paired"   # "greedy" | "exhaustive" | "paired" (only symmetric sets {-a,+a}, e.g. [-10,-5,5,10]; tries every choice of n/2 pairs)
 ring_search_range = [-19, 19]   # candidate tray range (integers), 0 excluded
@@ -165,7 +165,7 @@ ring_search_apply = true   # write winning rings into positions_in_tray_new_wish
 #
 # How many inserts: magnets_available / mags_per_segment, rounded DOWN. Every
 # insert is assumed completely full -- partially-filled inserts are never planned.
-magnets_available = 336   # total shim magnets on hand (336 / 7 = 48 full inserts)
+magnets_available = 840   # total shim magnets on hand (336 / 7 = 48 full inserts)
 insert_search_range = [-20, 20]   # candidate ring range (integers), 0 excluded
 insert_search_step = 1   # candidate ring spacing (tray units)
 # Two inserts IN THE SAME TRAY must have AT LEAST this many empty ring slots
@@ -178,13 +178,13 @@ insert_search_apply = true   # publish the shim CSV + record the rings used
 # Converts an OSII magnet-placement file into our Stage-2 shim CSV, bypassing the
 # field map + optimizer (osii_to_shim.jl). Frame map: our X = their x, our Y =
 # their z, our Z = −their y; metres → mm. File lives in data/inputs/OSII_shimming_outputs_toconvert/.
-osii_input_name = "Tryout_angles_90deg.csv"
-osii_invert_angle = true   # OSII twists about +y; our pocket angle is about −y (our +Z) → flip sign
-osii_angle_offset_deg = 90   # OSII 0° (+z = our +y) → our 90°; tweak if a test print is rotated
+osii_input_name = "12102026_JoshScanner_RingPairs_shim_xyz.csv"
+osii_invert_angle = false   # OSII twists about +y; our pocket angle is about −y (our +Z) → flip sign
+osii_angle_offset_deg = 0   # OSII 0° (+z = our +y) → our 90°; tweak if a test print is rotated
 
 # --- Stage 3 viewers (need display + GPU; block until closed) ----------------
-run_3d_viewer = false
-run_slice_viewer = true
+run_3d_viewer = true
+run_slice_viewer = false
 
 # GIF export (both viewers have a "Save GIF" button) -- saved under
 # data/outputs/Optimizer_Output_per_Iteration/<ITER>/Viewers/
