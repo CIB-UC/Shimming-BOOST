@@ -116,6 +116,9 @@ println("Stage 4: measurement  ", meas_path)
 shim_arg = shim_in === nothing ? nothing :
            write_verifier_shim(shim_in, joinpath(verifier_out_dir, "$(ITERATION)_shim_verifier_input.csv"))
 shim_in === nothing && println("Stage 4: shim layout  none — baseline only")
+# Shims ALREADY placed in the magnet (placed_shim_csvs) are deliberately NOT passed to the verifier: the measured
+# scan already contains them, so adding their field again would double-count it. Only the new layout above is added.
+isempty(placed_shim_csvs) || println("Stage 4: already-placed shims ($(join(placed_shim_csvs, ", "))) are NOT added — the scan already includes them")
 
 # --- launch the Python verifier --------------------------------------------------
 Sys.which(verifier_python) === nothing &&

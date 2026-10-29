@@ -32,6 +32,14 @@ Pkg.add([
 Pkg.instantiate()
 Pkg.precompile()
 
+# The layout figure (stages/stage1_5_export/layout_plot.jl) uses CairoMakie from its OWN small
+# environment, so the pinned CUDA/GLMakie stack above is never touched. Set it up here too
+# (layout_plot.jl would also do it on first use).
+Pkg.activate(joinpath(@__DIR__, "stages", "stage1_5_export", "layout_env"))
+Pkg.instantiate()
+Pkg.precompile()
+Pkg.activate(@__DIR__)
+
 println("\n=== Done. Environment ready in: ", @__DIR__, " ===")
 println("CUDA functional check:")
 using CUDA

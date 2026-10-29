@@ -34,23 +34,8 @@ function ringpos_from_tray_mm(trays::AbstractVector{<:Integer};
                     for t in trays ]
 end
 
-# Filtra posiciones deseadas sacando las ya ocupadas
-function filter_free_trays(wished::AbstractVector{<:Integer},
-                           occupied::AbstractVector{<:Integer}=Int[])::Vector{Int}
-    free = Int[]
-    occ = Set(occupied)
-    for p in wished
-        if p in occ
-            @info "Tray $p ocupado: se omite"
-        else
-            push!(free, p)
-        end
-    end
-    return free
-end
-
 """
-positions_from_rings_mm(wished_trays; occupied_trays=[], shim_radius_mm=235.0,
+positions_from_rings_mm(wished_trays; shim_radius_mm=235.0,
                         mags_per_segment=7, num_segments=12, angle_per_segment_deg=2*(180-169.68),
                         angular_offset_deg=0.0)
 
@@ -59,7 +44,6 @@ según anillos/trays y tu geometría. Aplica la transformación de ejes:
 X → -X ; Z → Y ; Y → Z
 """
 function positions_from_rings_mm(wished_trays::AbstractVector{<:Integer};
-                                 occupied_trays::AbstractVector{<:Integer}=Int[],
                                  shim_radius_mm::Real = 275.0,
                                  mags_per_segment::Integer = 6,
                                  num_segments::Integer = 12,
@@ -70,8 +54,7 @@ function positions_from_rings_mm(wished_trays::AbstractVector{<:Integer};
                                  back_tray_shift_mm::Real   = 10.0)
 
     # 1) trays válidos y posiciones axiales (mm)
-    free_trays = wished_trays #filter_free_trays(wished_trays, occupied_trays)
-    ring_z_mm  = ringpos_from_tray_mm(free_trays;
+    ring_z_mm  = ringpos_from_tray_mm(wished_trays;
                                       tray_slot_spacing_mm = tray_slot_spacing_mm,
                                       front_tray_shift_mm  = front_tray_shift_mm,
                                       back_tray_shift_mm   = back_tray_shift_mm)  # mm

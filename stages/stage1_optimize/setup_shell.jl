@@ -45,8 +45,10 @@ N       = Int32(length(grid.X))
 blocks  = cld(N, threads)
 
 # --- magnet positions (geometry only — identical to setup.jl) -----------------
+isempty(positions_in_tray_new_wished) && error(
+    "No rings selected yet. Run a Ring search or an Insert search first — they choose the rings; " *
+    "Grad build+solve, the L-curve and SA solve on the rings from the last search.")
 posiciones = positions_from_rings_mm(positions_in_tray_new_wished;
-    occupied_trays        = positions_in_tray_occupied,
     shim_radius_mm        = shim_radius_mm,
     mags_per_segment      = mags_per_segment,
     num_segments          = num_trays,

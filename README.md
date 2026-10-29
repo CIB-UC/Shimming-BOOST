@@ -140,6 +140,33 @@ use fewer magnets *and* get a better field.
 
 ---
 
+## 3a. Already-placed shims (a second round of shimming)
+
+If some shim inserts are **already installed** in the magnet — say after a first round — tell the tool
+where they are so it never plans a new insert on top of them.
+
+1. In **"0 — Field map"**, box **"Measured data"**, scroll to **"Already placed shims."**
+2. Click **"Add shim CSV(s)…"**. Your computer's file window opens; you can pick **one or several**
+   magnet lists (the `_shim.csv` of each earlier round). They are copied into
+   `data/inputs/Placed_Shims_csv/` and ticked.
+3. **Tick exactly the ones that are really in the magnet** (tick nothing = no shims placed). Untick a
+   list to ignore it without deleting it.
+
+What it does: **your measurement must already include those shims** (scan *after* installing them).
+The tool does not change the field; it only treats the slots they occupy as taken.
+
+- **Insert search** skips those exact slots, and also keeps new inserts the usual minimum number of empty
+  slots away from them *in the same tray*.
+- **Ring search** places whole rings, so it skips any ring that already holds a placed insert and any
+  ring too close to one (same minimum-gap setting as between new rings).
+- The **3D viewer** and the **layout figure** draw the placed shims in **grey**, under your new inserts
+  (legend: "Already placed"). This is display only: the field is never computed for them, in the
+  viewers or in the Python check — the scan already contains their effect.
+
+The list of magnets to place (`positions_in_tray_new_wished`) is no longer something you type: ring
+search / insert search fill it in. "Grad build+solve" and the L-curve use the rings from the **last**
+search; if there is none yet, they stop and tell you to run a search first.
+
 ## 4. Feature 2 — Importing an OSII layout
 
 ### What it's for
@@ -188,27 +215,29 @@ Both are adjustable right in the web page, so a fix is a click away — no code.
 2. At the top, type your **Iteration name** and **Label #**. These will appear on the
    output folder and be engraved on the trays.
 3. Find the box labelled **"1.5 — OSII import."**
-4. In **"Use OSII file,"** pick your OSII file. (Not listed? Paste its full path into
-   **"Import CSV (full path)"** and click **"Import into OSII folder"** — then pick it.)
+4. In **"Use OSII file,"** pick your OSII file. (Not listed? Click **"Choose OSII CSV…"** — your
+   computer's normal file window opens; pick the file and it is copied in and selected for you.)
 5. Leave the **Transform** settings at their defaults the first time (invert on, offset 90).
 6. Click **"Convert OSII → shim CSV."**
 7. Go to the box labelled **"2 — Inserts / STL"** and click **"Build STL."**
 8. Your printable trays appear in the output folder, named with your iteration.
 
-### Important: do not press "Export shim CSV" after an OSII import
+### Important: the optimizer exports for you — but an OSII import must not be "re-exported"
 
-"Export shim CSV" lives in the **"1 · 1.5 · 2"** tab, in the **Optimize** box, next to
-"Run optimization". It turns an optimizer result into the magnet list, so use it only
-after you've run our optimizer.
+**"Run optimization"** (in the **Optimize** box of the **"1 · 1.5 · 2"** tab) now does the whole
+job: it runs the optimizer, then **automatically writes the magnet list (shim CSV)** and
+**draws the layout figure** (one panel per ring, every magnet drawn as an arrow coloured by its
+angle). There is no separate Export button any more. The figure is saved next to your results
+in `Layout/` (PNG and PDF) — the **"Layout figure"** button in the folder bar opens it.
 
-Stage 2 now has a single button, **"Build STL"**, which builds the printable trays from the
-magnet list that is already on disk — whether that list came from the optimizer (after
-"Export shim CSV"), from an insert search, or from an OSII import.
+Stage 2 has a single button, **"Build STL"**, which builds the printable trays from the
+magnet list that is already on disk — whether it came from the optimizer, an insert search
+or an OSII import.
 
-If you press "Export shim CSV" after an OSII import, it will stop with an explanation
-(or fail with a "file not found" error) — because it first tries to export an optimizer
-result that doesn't exist (you skipped the optimizer on purpose). **After an OSII import,
-go straight to "Build STL."**
+After an **OSII import** (or a file you imported yourself), do **not** run the optimizer
+afterwards just to "export": the optimizer would rebuild the list from its own result and
+replace the imported one. Go straight to **"Build STL"**. (The layout figure for an imported
+list is drawn automatically after the conversion too.)
 
 ---
 
@@ -456,8 +485,7 @@ angles) have to be turned **back** before they mean something in the scanner's o
 - Both viewers draw in the scanner's view too (`viewer_frame = "scan"`) and show the field **with its sign**
   (negative numbers if the field points −x or −y). Set either key to `"optimizer"` (in `config.toml`) to get
   the old behaviour.
-- A magnet list made **before** this change is not converted — just click **Export** again (no need to
-  re-optimize).
+- A magnet list made **before** this change is not converted — just click **Run optimization** again (the export happens at the end of the run).
 - Tray numbers are worked out from where each magnet sits, so after the turn a −y scan's tray 3 becomes tray 9
   and so on (every tray shifts by 6). Check that the physical tray numbering on your magnet matches the
   scanner's directions — this is the one thing the tool cannot know for you.

@@ -34,7 +34,7 @@ include(joinpath(@__DIR__, "..", "..", "core", "utils/viewer_frame.jl")) # optim
 ############ Config (from pipeline_config.jl) ############
 # Shim solution and field map come from the pipeline config. Each ring's axial z is
 # derived straight from its own RingNumber (real InsertPos) below — not from
-# positions_in_tray_new_wished/positions_in_tray_occupied, which only describe what
+# positions_in_tray_new_wished, which only describe what
 # THIS run of the optimizer was asked to place, not what the CSV on disk actually holds.
 field_colormap      = :plasma
 # Shim magnet strength: pipeline_config.jl's magnet_moment_Am2, derived from

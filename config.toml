@@ -29,9 +29,9 @@ shell_source = "measured"
 shell_n_points = 2000   # points on the Rmax shell when shell_source = "sh_fibonacci"
 
 # --- iteration identity ------------------------------------------------------
-iteration = "24102026_UCScanner_AllInOne_6ringShim"
-iteration_number = 4   # engraved on insert labels
-measured_fieldmap_name = "23102026_UCScanner_NoShim_Try2.csv"
+iteration = "ISMRM Abstract"
+iteration_number = 0   # engraved on insert labels
+measured_fieldmap_name = "06102026_UCScanner_NoShimming.csv"
 main_field_direction = "auto"   # "+x"|"-x"|"+y"|"-y"|"auto"  (auto detects from the measured field vector — Controlled scans only)
 
 # --- shared geometry (BOOST + insert generator) ------------------------------
@@ -55,8 +55,8 @@ tray_slot_spacing_mm = 10
 front_tray_shift_mm = 0
 back_tray_shift_mm = 0
 
-positions_in_tray_occupied = []   # rings already filled
-positions_in_tray_new_wished = [-13, -3, -2, 2, 3, 13]
+placed_shim_csvs = []   # shim CSVs ALREADY placed in the magnet (GUI: Stage 0 → Measured data → Already placed shims). The scan must include them; their insert slots are blocked for new inserts. [] = none
+positions_in_tray_new_wished = [-11, -3, -2, 2, 3, 11]   # MANAGED: written by ring search / insert search (apply); Grad/SA solve on these rings. Hidden in the GUI
 Rmin = 0   # homogeneity shell (mm)
 Rmax = 100
 

@@ -56,7 +56,7 @@ tip_marker_size  = 2.5                              # diameter (mm, data-space) 
 
 # Shim solution comes straight from the shim CSV (the geometry stage's own output);
 # each ring's tray geometry is derived from its RingNumber (real InsertPos) below,
-# not from positions_in_tray_new_wished/positions_in_tray_occupied — those describe
+# not from positions_in_tray_new_wished — those describe
 # what THIS run of the optimizer was asked to place, not what the CSV on disk holds.
 
 # Measured magnetic field comes from pipeline_config.jl's fieldmap_path
@@ -313,6 +313,48 @@ for i in eachindex(ring)
 end
 end   # if has_shim (magnet geometry)
 
+############ Already-placed shims (display only) ############
+# Shims already installed in the magnet (config placed_shim_csvs). The measured scan ALREADY includes them, so they
+# are never part of any field computation here — the dipole field above uses only the new shim CSV. They are just
+# drawn, in grey, so the new inserts can be seen in context. The CSVs are in `shim_csv_frame`; they are brought
+# into the frame this viewer draws in (`viewer_frame`) with the scan's B0 direction when the two differ.
+include(joinpath(@__DIR__, "..", "..", "core", "utils", "placed_shims.jl"))   # read_placed_magnets
+placed_M = read_placed_magnets(placed_shim_paths; tray_slot_spacing_mm = tray_slot_spacing_mm,
+                               front_tray_shift_mm = front_tray_shift_mm, back_tray_shift_mm = back_tray_shift_mm)
+placed_x = Float32.(placed_M.x); placed_y = Float32.(placed_M.y); placed_deg = Float32.(placed_M.ang)
+if !isempty(placed_x) && viewer_frame != shim_csv_frame
+    if @isdefined(field_dir)
+        _pr = viewer_frame == "optimizer" ? [scan_to_opt_xy(placed_x[i], placed_y[i], field_dir) for i in eachindex(placed_x)] :
+                                            [opt_to_scan_xy(placed_x[i], placed_y[i], field_dir) for i in eachindex(placed_x)]
+        placed_x   = Float32.(first.(_pr)); placed_y = Float32.(last.(_pr))
+        placed_deg = Float32.(mod.(placed_deg .+ (viewer_frame == "optimizer" ? scan_to_opt_angle_deg(field_dir) :
+                                                                                opt_to_scan_angle_deg(field_dir)), 360))
+    else
+        @warn "placed shims: can't rotate them into viewer_frame = \"$(viewer_frame)\" (scan direction unknown without the field map) — drawn as written"
+    end
+end
+placed_rings_u = sort(unique(placed_M.ring))
+placed_z_of    = Dict(r => Float32(z) for (r, z) in zip(placed_rings_u,
+                      ringpos_from_tray_mm(placed_rings_u; tray_slot_spacing_mm = tray_slot_spacing_mm,
+                                           front_tray_shift_mm = front_tray_shift_mm,
+                                           back_tray_shift_mm = back_tray_shift_mm)))
+placed_z    = Float32[placed_z_of[r] for r in placed_M.ring]
+placed_seg  = Point3f[]
+placed_pole = Point3f[]
+if !isempty(placed_x)
+    _hs = Float32(magnet_size_mm / 2)
+    _ca = cos.(deg2rad.(placed_deg)); _sa = sin.(deg2rad.(placed_deg))
+    _corners = ((_hs, _hs), (_hs, -_hs), (-_hs, -_hs), (-_hs, _hs))
+    for i in eachindex(placed_x), k in 1:4
+        (lx, ly), (lx2, ly2) = _corners[k], _corners[mod1(k + 1, 4)]
+        push!(placed_seg, Point3f(placed_x[i] + lx  * _ca[i] - ly  * _sa[i], placed_y[i] + lx  * _sa[i] + ly  * _ca[i], placed_z[i]))
+        push!(placed_seg, Point3f(placed_x[i] + lx2 * _ca[i] - ly2 * _sa[i], placed_y[i] + lx2 * _sa[i] + ly2 * _ca[i], placed_z[i]))
+    end
+    placed_pole = Point3f.(placed_x .+ _hs .* _ca, placed_y .+ _hs .* _sa, placed_z)
+    println("Already-placed shims (grey, display only — NOT added to any field): $(length(placed_x)) magnets in ring(s) ",
+            "$(placed_rings_u) from $(join(unique(placed_M.file), ", "))")
+end
+
 
 
 
@@ -328,6 +370,10 @@ if has_shim   # draw the magnets only when there's a shim solution
     linesegments!(ls, seg_pts; color = seg_colors, colormap = :turbo, linewidth = 3)
     scatter!(ls, pole_points; color = ring, colormap = :turbo,
         markersize = tip_marker_size, markerspace = :data)
+end
+if !isempty(placed_x)   # already-placed shims: grey, display only
+    linesegments!(ls, placed_seg; color = :gray60, linewidth = 2)
+    scatter!(ls, placed_pole; color = :gray40, markersize = tip_marker_size, markerspace = :data)
 end
 
 if show_field
@@ -361,14 +407,22 @@ text!(ls, Point3f(0, 0, back_label_z); text = "Back - Wall", fontsize = 20, colo
 # physical InsertPos (signed tray slot) now, so there's no separate "tray" to look up —
 # the label just shows the same P/N token engraved on the physical part
 # (utils/helping_functions_for_JIG.jl's make_label), e.g. -7 -> "N07", +12 -> "P12".
-if has_shim
+if has_shim || !isempty(placed_x)
     insertpos_label(pos::Int) = (pos < 0 ? "N" : "P") * lpad(abs(pos), 2, '0')
-    _ring_cmap     = cgrad(:turbo)
-    ring_colour(r) = ring_hi == ring_lo ? _ring_cmap[0.5] :
-                     _ring_cmap[(r - ring_lo) / (ring_hi - ring_lo)]
-    legend_swatches = [MarkerElement(color = ring_colour(r), marker = :rect, markersize = 16)
-                       for r in unique_rings]
-    legend_labels   = ["Ring $(insertpos_label(r))" for r in unique_rings]
+    legend_swatches = Any[]
+    legend_labels   = String[]
+    if has_shim
+        _ring_cmap     = cgrad(:turbo)
+        ring_colour(r) = ring_hi == ring_lo ? _ring_cmap[0.5] :
+                         _ring_cmap[(r - ring_lo) / (ring_hi - ring_lo)]
+        append!(legend_swatches, [MarkerElement(color = ring_colour(r), marker = :rect, markersize = 16)
+                                  for r in unique_rings])
+        append!(legend_labels, ["Ring $(insertpos_label(r))" for r in unique_rings])
+    end
+    if !isempty(placed_x)
+        push!(legend_swatches, MarkerElement(color = :gray60, marker = :rect, markersize = 16))
+        push!(legend_labels, "Already placed (in the scan)")
+    end
     Legend(fig[1, 1], legend_swatches, legend_labels, "Rings";
         tellwidth = false, tellheight = false, halign = :left, valign = :top,
         margin = (10, 10, 10, 10), framevisible = true, labelsize = 14, titlesize = 15)

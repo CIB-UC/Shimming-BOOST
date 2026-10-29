@@ -24,6 +24,7 @@ const REPO         = normpath(joinpath(@__DIR__, ".."))
 const CONFIG       = joinpath(REPO, "config.toml")
 const MEASURED_DIR = joinpath(REPO, "data", "inputs", "Measured_Field_Data_csv")
 const OSII_DIR     = joinpath(REPO, "data", "inputs", "OSII_shimming_outputs_toconvert")
+const PLACED_DIR   = joinpath(REPO, "data", "inputs", "Placed_Shims_csv")
 const CACHE_DIR    = joinpath(REPO, "data", "cache", "Interpolated_Field_Data_jld2")
 const ASSETS_DIR   = joinpath(REPO, "assets")
 
@@ -42,6 +43,7 @@ const STAGES = Dict(
     "sa_lcurve"       => joinpath("stages", "stage1_optimize", "sim_annealing_optim", "run_lcurve.jl"),
     "benchmark"       => joinpath("stages", "stage1_optimize", "sim_annealing_optim", "benchmark.jl"),
     "export"          => joinpath("stages", "stage1_5_export", "export_csv.jl"),
+    "layout"          => joinpath("stages", "stage1_5_export", "layout_plot.jl"),   # shim CSV → per-ring layout figure
     "osii"            => joinpath("stages", "stage1_5_export", "osii_to_shim.jl"),                        # Stage 1.5 (alt): OSII CSV → shim CSV
     "stl"             => joinpath("stages", "stage2_stl", "CSV_to_STL.jl"),
     "eval"            => joinpath("core", "utils", "eval_metrics.jl"),
@@ -134,8 +136,13 @@ function validate_config(cfg::AbstractDict)
                         "not enough for one full insert")
         end
     end
+    if haskey(cfg, "placed_shim_csvs")
+        v = cfg["placed_shim_csvs"]
+        (v isa AbstractVector && all(x -> x isa AbstractString, v)) ||
+            push!(errs, "placed_shim_csvs = $(repr(v)) — must be a list of shim CSV file names (or [])")
+    end
     # Tray 0 does not exist (utils/pos_trays.jl errors on it) — catch it here, before a run.
-    for k in ("positions_in_tray_new_wished", "positions_in_tray_occupied")
+    for k in ("positions_in_tray_new_wished",)
         haskey(cfg, k) || continue
         v = cfg[k]
         v isa AbstractVector || continue
@@ -215,6 +222,29 @@ function import_osii(src::AbstractString)
     return basename(src)
 end
 
+# --- already-placed shim CSVs (0, 1 or several) --------------------------------
+list_placed() = isdir(PLACED_DIR) ?
+    sort(filter(f -> endswith(lowercase(f), ".csv"), readdir(PLACED_DIR))) : String[]
+
+"""
+    save_upload(kind, name, bytes) -> stored filename
+
+Store a file the browser sent through its native file picker (the browser never reveals the full path, so the
+content is uploaded). `kind` is "measured" (scan), "osii" (OSII layout) or "placed" (already-placed shim CSV).
+The name is reduced to a plain, safe .csv file name inside that kind's own folder.
+"""
+function save_upload(kind::AbstractString, name::AbstractString, bytes::AbstractVector{UInt8})
+    dir = kind == "measured" ? MEASURED_DIR : kind == "osii" ? OSII_DIR : kind == "placed" ? PLACED_DIR :
+          error("unknown upload kind: $(repr(kind)) (use measured, osii or placed)")
+    fname = String(strip(basename(replace(String(name), '\\' => '/'))))
+    occursin(r"^[A-Za-z0-9][A-Za-z0-9._ ()+\-]*\.[Cc][Ss][Vv]$", fname) ||
+        error("not a valid .csv file name: $(repr(fname)) (letters, digits, space and . _ - ( ) + only)")
+    isempty(bytes) && error("$(fname) is empty")
+    mkpath(dir)
+    write(joinpath(dir, fname), bytes)
+    return fname
+end
+
 # --- what is actually in the current shim CSV --------------------------------
 """
     placement() -> (; exists, magnets, rings)
@@ -262,7 +292,8 @@ function output_dirs()
     return (optimizer = opt,
             final      = joinpath(REPO, "data", "outputs", "Final_3D_printing_outputs_per_Iteration", it),
             verifier   = joinpath(opt, get(read_config(), "verifier_output_subdir", "PythonVerifier")),
-            viewers    = joinpath(opt, get(read_config(), "viewer_gif_subdir", "Viewers")))
+            viewers    = joinpath(opt, get(read_config(), "viewer_gif_subdir", "Viewers")),
+            layout     = joinpath(opt, "Layout"))
 end
 
 # --- run a stage as a streamed subprocess ------------------------------------

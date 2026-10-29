@@ -16,7 +16,7 @@
 using TOML
 
 const ROOT = @__DIR__
-const _CFG = TOML.parsefile(joinpath(ROOT, "config.toml"))
+const _CFG = TOML.parsefile(get(ENV, "BOOST_CONFIG", joinpath(ROOT, "config.toml")))   # BOOST_CONFIG = alternative config file (tests)
 
 # --- small typed accessors ---------------------------------------------------
 _get(k)      = haskey(_CFG, k) ? _CFG[k] : error("config.toml is missing key: $(k)")
@@ -104,6 +104,12 @@ const shim_csv_path             = joinpath(optimizer_iter_dir, shimming_magnets_
 const shimming_magnets_xyz_csv_name = "$(ITERATION)_shim_xyz.csv"
 const shim_csv_xyz_path             = joinpath(optimizer_iter_dir, shimming_magnets_xyz_csv_name)
 
+# Layout figure (layout_plot.jl): one quiver panel per ring, magnets coloured by angle.
+# Written right after the shim CSV (GUI "Run optimization" does optimize -> export -> figure).
+const layout_dir      = joinpath(optimizer_iter_dir, "Layout")
+const layout_png_path = joinpath(layout_dir, "$(ITERATION)_optimizer_layout.png")
+const layout_pdf_path = joinpath(layout_dir, "$(ITERATION)_optimizer_layout.pdf")
+
 # Stage 2 insert parameters (mm)
 const mag_cover_thickness  = _flt("mag_cover_thickness")
 const extr_cover_thickness = _get("extr_cover_thickness")
@@ -140,15 +146,16 @@ const angular_offset_deg    = _flt("angular_offset_deg")
 const tray_slot_spacing_mm  = Float64(_getdef("tray_slot_spacing_mm", 10.0))
 const front_tray_shift_mm   = Float64(_getdef("front_tray_shift_mm", 10.0))
 const back_tray_shift_mm    = Float64(_getdef("back_tray_shift_mm",  10.0))
-const positions_in_tray_occupied   = _intvec("positions_in_tray_occupied")
-# Rings that are already filled can never receive new magnets: drop them from the wished list
-# (loudly), so setup, the optimizer, export_csv and the viewers all see the same free rings.
-# (The ring search / insert search apply the same rule to their candidate ranges.)
-const positions_in_tray_new_wished = let w = _intvec("positions_in_tray_new_wished")
-    clash = [t for t in w if t in positions_in_tray_occupied]
-    isempty(clash) || @warn "positions_in_tray_new_wished contains rings that are listed as occupied — skipping them" skipped = clash
-    [t for t in w if !(t in positions_in_tray_occupied)]
-end
+# Shim inserts ALREADY placed in the magnet (0, 1 or several shim CSVs). File names live in
+# data/inputs/Placed_Shims_csv/ (an absolute path also works). The scan is assumed to include them, so they
+# only BLOCK slots — see core/utils/placed_shims.jl for how the searches use them.
+const PLACED_SHIM_DIR   = joinpath(ROOT, "data", "inputs", "Placed_Shims_csv")
+const placed_shim_csvs  = String[String(x) for x in _getdef("placed_shim_csvs", String[])]
+const placed_shim_paths = String[isabspath(f) ? f : joinpath(PLACED_SHIM_DIR, f) for f in placed_shim_csvs]
+# The rings of the CURRENT solution. Not a user input any more (hidden in the GUI): ring search / insert search
+# write it when they apply their winner, export_csv maps ring blocks to InsertPos with it, and Grad build+solve,
+# the L-curve and SA solve on exactly these rings. (Already-placed shims are handled by placed_shim_csvs above.)
+const positions_in_tray_new_wished = _intvec("positions_in_tray_new_wished")
 const Rmin = _flt("Rmin")
 const Rmax = _flt("Rmax")
 

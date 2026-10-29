@@ -77,11 +77,26 @@ mkpath(dirname(OPCACHE))
 
 # --- candidate rings (integer tray numbers), 0 excluded ----------------------
 const lo, hi     = insert_search_range[1], insert_search_range[2]
-const candidates = [t for t in lo:insert_search_step:hi if t != 0 && !(t in positions_in_tray_occupied)]   # occupied rings are never candidates
-isempty([t for t in lo:insert_search_step:hi if t in positions_in_tray_occupied]) ||
-    println("Occupied rings excluded from the candidates: ", [t for t in lo:insert_search_step:hi if t in positions_in_tray_occupied])
+const candidates = [t for t in lo:insert_search_step:hi if t != 0]
 const Ncand      = length(candidates)
 isempty(candidates) && error("insert_search_range = $(insert_search_range) yields no candidate rings.")
+
+# --- inserts ALREADY placed in the magnet (config placed_shim_csvs; GUI: Measured data → Already placed shims) ---
+# The scan already includes them, so they only BLOCK slots: the exact (ring, tray) slot, and — same tray only —
+# anything closer than insert_search_min_spots_between empty ring slots. The ring-operator cache below does not
+# depend on them (candidates stay the full range), so changing what is placed never forces a GPU rebuild.
+include(joinpath(@__DIR__, "..", "..", "..", "core", "utils", "placed_shims.jl"))
+include(joinpath(@__DIR__, "..", "..", "..", "core", "utils", "viewer_frame.jl"))   # read_field_direction, opt_to_scan_*
+const PLACED = let
+    sdir = nothing
+    if shim_csv_frame == "scan" && !isempty(placed_shim_paths)
+        sdir = read_field_direction(shell_fieldmap_path, fieldmap_path)
+        sdir === nothing && main_field_direction != "auto" && (sdir = main_field_direction)
+    end
+    load_placed_inserts(placed_shim_paths; num_trays = num_trays, mags_per_segment = mags_per_segment,
+                        tray_slot_spacing_mm = tray_slot_spacing_mm, front_tray_shift_mm = front_tray_shift_mm,
+                        back_tray_shift_mm = back_tray_shift_mm, csv_frame = shim_csv_frame, scan_dir = sdir)
+end
 
 # --- shell bookkeeping (rows of the operator) --------------------------------
 const shell_idx = findall(>(0f0), vec(Array(msk)))
@@ -100,7 +115,7 @@ const SIG = string((candidates, shim_radius_mm, mags_per_segment, num_trays,
 # positions_from_rings_mm loops segments outer, magnets inner, so segment s owns
 # columns (s-1)*MPS+1 … s*MPS.
 # ---------------------------------------------------------------------------
-ring_positions(t) = positions_from_rings_mm([t]; occupied_trays = positions_in_tray_occupied,
+ring_positions(t) = positions_from_rings_mm([t];
           shim_radius_mm = shim_radius_mm, mags_per_segment = mags_per_segment,
           num_segments = num_trays, angle_per_segment_deg = angle_per_segment_deg,
           angular_offset_deg = angular_offset_deg,
@@ -229,6 +244,10 @@ function compatible(ci, s, placed)
     return true
 end
 
+# a candidate slot (ring index, segment) is FREE unless an already-placed insert takes it or sits too close in its tray
+slot_free(ci, s) = !insert_slot_blocked(candidates[ci], SEG_TRAY[s], PLACED, insert_search_min_spots_between;
+                                        spots_between = spots_between)
+
 # InsertPos -> the printed P/N sign token, matching make_label's engraved N/P glyphs
 # (utils/helping_functions_for_JIG.jl) — e.g. -7 -> "N07", +12 -> "P12".
 insertpos_label(pos::Int) = (pos < 0 ? "N" : "P") * lpad(abs(pos), 2, '0')
@@ -237,7 +256,8 @@ insertpos_label(pos::Int) = (pos < 0 ? "N" : "P") * lpad(abs(pos), 2, '0')
 # Budget → number of inserts. Every insert is assumed FULL (no partial inserts).
 # ---------------------------------------------------------------------------
 const n_budget = fld(magnets_available, MPS)
-const n_slots  = Ncand * num_trays
+const n_slots  = count(slot_free(ci, s) for ci in 1:Ncand, s in 1:num_trays)   # free, legal slots (placed inserts excluded)
+n_slots < 1 && error("insert search: every candidate slot is blocked by the already-placed shims — widen insert_search_range or lower insert_search_min_spots_between.")
 const n_cap    = insert_search_max_inserts > 0 ? insert_search_max_inserts : typemax(Int)
 const n_place  = min(n_budget, n_cap, n_slots)
 n_place < 1 && error("magnets_available = $(magnets_available) gives $(n_budget) full inserts " *
@@ -254,8 +274,14 @@ leftover > 0 && @printf("   (%d magnets left over, not placed)", leftover)
 println()
 println("  placing           : $(n_place) insert(s)" *
         (n_place < n_budget ? "   (capped by insert_search_max_inserts / slots)" : ""))
-println("  candidate slots   : $(Ncand) rings × $(num_trays) trays = $(n_slots)" *
+println("  candidate slots   : $(Ncand) rings × $(num_trays) trays = $(Ncand * num_trays), of which $(n_slots) free" *
         "   (trays $(candidates[1])…$(candidates[end]))")
+if isempty(PLACED)
+    println("  already placed    : none")
+else
+    println("  already placed    : $(length(PLACED)) insert(s) in ring(s) $(placed_rings(PLACED)) from $(join(unique(p.file for p in PLACED), ", "))" *
+            "   — blocked for new inserts (the scan is assumed to include them)")
+end
 println("  spacing rule      : at least $(insert_search_min_spots_between) empty ring slots between inserts IN THE SAME TRAY")
 println("  ranking pass      : " * (RANK_FULL_SHELL ?
         "FULL shell ($(Ns) pts/candidate — no subsampling)" :
@@ -294,6 +320,7 @@ function run_insert_search()
         bestp = Inf; best_ci = 0; best_s = 0; scanned = 0
         for ci in 1:Ncand, s in 1:num_trays
             any(p -> p.ci == ci && p.seg == s, placed) && continue      # slot already used
+            slot_free(ci, s) || continue                                 # taken / too close to an ALREADY-placed insert
             compatible(ci, s, placed) || continue
             p, _ = solve_insert(GXR[:, seg_cols(s), ci], GYR[:, seg_cols(s), ci], b_rank;
                                 seeds = SEEDS_SEARCH, g_tol = RANK_GTOL, iterations = RANK_ITERS)
@@ -391,7 +418,6 @@ end
 # Rotate back into the scan's frame (shim_csv_frame = "scan"), exactly as export_csv.jl does, so the
 # sparse CSV and a later "Export shim CSV" regeneration agree. The placement plan printed above
 # uses optimizer-frame tray numbers; Stage 2 re-derives the tray from the rotated (x,y).
-include(joinpath(@__DIR__, "..", "..", "..", "core", "utils", "viewer_frame.jl"))
 if shim_csv_frame == "scan"
     sdir = read_field_direction(shell_fieldmap_path, fieldmap_path)
     sdir === nothing && (main_field_direction != "auto" ? (sdir = main_field_direction) :

@@ -21,7 +21,7 @@ using HTTP, JSON
 include(joinpath(@__DIR__, "backend.jl"))
 using .Backend
 
-const PORT     = 8010
+const PORT     = parse(Int, get(ENV, "BOOST_GUI_PORT", "8010"))   # override to run a second instance (e.g. for testing)
 const APP_HTML = joinpath(@__DIR__, "app.html")
 const PRESETS  = joinpath(@__DIR__, "presets.json")
 
@@ -67,6 +67,22 @@ function handle(req::HTTP.Request)
             return json_resp(Dict("ok" => true, "name" => name,
                                   "files" => Backend.list_osii()))
 
+        elseif m == "GET" && path == "/api/placed"
+            cfg = Backend.read_config()
+            return json_resp(Dict("files" => Backend.list_placed(),
+                                  "selected" => get(cfg, "placed_shim_csvs", String[])))
+
+        elseif m == "POST" && path == "/api/upload"
+            # a file chosen with the browser's native file picker: raw bytes in the body,
+            # ?kind=measured|osii|placed&name=<file name>
+            q    = HTTP.queryparams(HTTP.URI(req.target).query)
+            name = HTTP.URIs.unescapeuri(get(q, "name", ""))
+            kind = get(q, "kind", "")
+            stored = Backend.save_upload(kind, name, req.body)
+            files = kind == "measured" ? Backend.list_measured() :
+                    kind == "osii"     ? Backend.list_osii() : Backend.list_placed()
+            return json_resp(Dict("ok" => true, "name" => stored, "kind" => kind, "files" => files))
+
         elseif m == "POST" && path == "/api/stop"
             return json_resp(Dict("stopped" => Backend.stop_run()))
 
@@ -97,8 +113,10 @@ function handle(req::HTTP.Request)
                     which == "optimizer" ? d.optimizer :
                     which == "verifier"  ? d.verifier :
                     which == "viewers"   ? d.viewers :
+                    which == "layout"    ? d.layout :
                     which == "measured"  ? Backend.MEASURED_DIR :
                     which == "osii"      ? Backend.OSII_DIR :
+                    which == "placed"    ? Backend.PLACED_DIR :
                     which == "cache"     ? Backend.CACHE_DIR :
                     which == "assets"    ? Backend.ASSETS_DIR : Backend.REPO
             Backend.open_folder(path2)

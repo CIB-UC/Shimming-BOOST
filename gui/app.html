@@ -94,6 +94,8 @@
   #s0 .cols>.sub:nth-child(3),#s0 .cols>.sub:nth-child(4){grid-column:1/-1}
   #geofields,#adapterfields{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));column-gap:16px}
   #verifierrun{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));column-gap:16px}
+  #placedlist{max-height:120px;overflow:auto;background:#fff;border:1px solid var(--edge);border-radius:6px;padding:4px 8px;margin-bottom:6px}
+  #placedlist label{display:block;font-size:12.5px;margin:2px 0;white-space:nowrap}
   .spin{color:var(--acc-deep)}
   .fdesc{font-size:11px;color:var(--mut);margin:-1px 0 5px 0;line-height:1.3}
     .iterband label{color:var(--mut);font-size:13px}
@@ -147,9 +149,13 @@
       <div class="cols">
       <div class="sub"><h3>Measured data</h3>
         <div class="row"><label>Use field map</label><select id="measured"></select></div>
-        <div class="row"><label>Import CSV (full path)</label><input id="importpath" placeholder="C:\path\to\scan.csv"/></div>
-        <div class="actions"><button id="importbtn" class="presetbtn">Import into data folder</button></div>
-        <p class="hint">Copies into <code>data/inputs/Measured_Field_Data_csv/</code>, then pick it above.</p>
+        <div class="actions"><button id="importbtn" class="presetbtn">Choose scan CSV…</button><input type="file" id="importfile" accept=".csv,text/csv" hidden></div>
+        <p class="hint">Opens the file picker; the CSV is copied into <code>data/inputs/Measured_Field_Data_csv/</code> and selected above.</p>
+        <h3 style="margin-top:12px">Already placed shims</h3>
+        <div id="placedlist"></div>
+        <div class="actions"><button id="placedbtn" class="presetbtn">Add shim CSV(s)…</button><input type="file" id="placedfile" accept=".csv,text/csv" multiple hidden></div>
+        <p class="hint" id="placedsummary"></p>
+        <p class="hint">Tick every shim CSV that is <b>already installed</b> in the magnet (none ticked = nothing placed). The scan must already include them; the searches keep new inserts off their slots.</p>
       </div>
       <div class="sub"><h3>Shim magnets</h3><div id="magnetfields"></div>
         <p class="hint" id="muhint"></p>
@@ -168,8 +174,7 @@
   <section class="stage" id="s1a">
     <div class="stagehead"><span class="num">1</span><h2>Optimize</h2><span class="grow"></span>
       <button data-run="eval" class="runbtn">Compare metrics</button>
-      <button data-run="export" class="runbtn" title="Optimizer result → shim CSV (the seam into Stage 2). Not for OSII imports.">Export shim CSV</button>
-      <button id="run-stage1" class="primary runbtn">Run optimization</button></div>
+      <button id="run-stage1" class="primary runbtn" title="Runs the task, then (for optimizer results) exports the shim CSV and draws the layout figure.">Run optimization</button></div>
     <div class="stagebody">
       <div class="tasks" id="tasks"></div>
       <div class="cols"><div class="sub" style="grid-column:1/-1"><h3 id="taskname">Parameters</h3><div id="stage1params" class="cols"></div><p class="hint" id="taskhint"></p></div></div>
@@ -183,12 +188,11 @@
     <div class="stagebody"><div class="cols">
       <div class="sub"><h3>OSII shim-config file</h3>
         <div class="row"><label>Use OSII file</label><select id="osii"></select></div>
-        <div class="row"><label>Import CSV (full path)</label><input id="osii-importpath" placeholder="C:\path\to\osii_shim_config.csv"/></div>
-        <div class="actions"><button id="osii-importbtn" class="presetbtn">Import into OSII folder</button></div>
-        <p class="hint">Copies into <code>data/inputs/OSII_shimming_outputs_toconvert/</code>, then pick it above.</p>
+        <div class="actions"><button id="osii-importbtn" class="presetbtn">Choose OSII CSV…</button><input type="file" id="osii-importfile" accept=".csv,text/csv" hidden></div>
+        <p class="hint">Opens the file picker; the CSV is copied into <code>data/inputs/OSII_shimming_outputs_toconvert/</code> and selected above.</p>
       </div>
       <div class="sub"><h3>Transform</h3><div id="osiifields"></div>
-        <p class="hint">Skips Stage 0 &amp; 1: writes <code>&lt;iteration&gt;_shim.csv</code> straight from the OSII file (our X = their x, Y = their z, Z = −their y; metres→mm; angle inverted + offset). Then in Stage 2 use <b>Build STL</b> — <i>not</i> <b>Export shim CSV</b> in Stage 1 (Export re-runs the optimizer seam and needs a solver result the OSII path doesn't create). Iteration name/number carry through to the final folder &amp; engraved inserts.</p>
+        <p class="hint">Skips Stage 0 &amp; 1: writes <code>&lt;iteration&gt;_shim.csv</code> straight from the OSII file (our X = their x, Y = their z, Z = −their y; metres→mm; angle inverted + offset). Then in Stage 2 use <b>Build STL</b> — <i>not</i> <b>Run optimization</b> (its automatic export would rebuild the list from an optimizer result the OSII path doesn't have, and replace your import). The layout figure is drawn right after the conversion. Iteration name/number carry through to the final folder &amp; engraved inserts.</p>
       </div>
     </div></div>
   </section>
@@ -260,10 +264,12 @@
   <span class="sep"></span><span class="lbl">Inputs</span>
   <button data-open="measured">Measured scans</button>
   <button data-open="osii">OSII layouts</button>
+  <button data-open="placed">Placed shims</button>
   <span class="sep"></span><span class="lbl">Cache</span>
   <button data-open="cache">Field maps</button>
   <span class="sep"></span><span class="lbl">This iteration</span>
   <button data-open="optimizer">Optimizer output</button>
+  <button data-open="layout">Layout figure</button>
   <button data-open="viewers">Viewer GIFs</button>
   <button data-open="verifier">Verifier output</button>
   <button data-open="final">3D-print output</button>
@@ -278,13 +284,15 @@ const ENUMS={optimizer:["grad","sim_annealing"],pipeline_mode:["full","lcurve"],
   sweep_xkey:["lambda","T0","alpha","iters","restarts","step0","step_min"],
   ring_search_method:["greedy","exhaustive","paired"],eval_domain:["grid","shell"],
   shell_source:["measured","sh_fibonacci"],sh_select:["all","first_n","top_k"]};
-const GEO_KEYS=["num_trays","mags_per_segment","shim_radius_mm","angle_per_segment_deg","angular_offset_deg","tray_slot_spacing_mm","front_tray_shift_mm","back_tray_shift_mm","positions_in_tray_occupied","positions_in_tray_new_wished","Rmin","Rmax"];
+const GEO_KEYS=["num_trays","mags_per_segment","shim_radius_mm","angle_per_segment_deg","angular_offset_deg","tray_slot_spacing_mm","front_tray_shift_mm","back_tray_shift_mm","Rmin","Rmax"];
 // Physical shim-magnet properties — own panel, since these feed the optimizer, the
 // ring search AND both Stage-3 viewers (they used to be hardcoded in all five files).
 const MAGNET_KEYS=["magnet_Br_T","magnet_side_mm","initial_angle_deg"];
 // Magnet strength is hardware, so a geometry preset saved from here carries it too.
 // (The shipped V1.1/V2.1 presets predate these keys and simply leave them alone.)
 const GEO_PRESET_KEYS=GEO_KEYS.concat(["magnet_Br_T","magnet_side_mm"]);
+// Managed by the searches / by the placed-shim list, never typed in or restored from a preset (older presets still carry them):
+const HIDDEN_KEYS=['positions_in_tray_new_wished','positions_in_tray_occupied'];
 const MU0=4*Math.PI*1e-7;   // μ[A·m²] = Br[T]·(side_mm·1e-3)³/μ0
 const STAGE2_KEYS=["mag_cover_thickness","extr_cover_thickness","lc","width_holes","letter_thickness","label_scale","Tray_short_radii","Tray_long_radii"];
 // a Stage-2 version also pins theta (a geometry key, edited in Stage 0) — so V1/V2
@@ -292,18 +300,19 @@ const STAGE2_KEYS=["mag_cover_thickness","extr_cover_thickness","lc","width_hole
 const STAGE2_PRESET_KEYS=STAGE2_KEYS.concat(["angle_per_segment_deg","shim_radius_mm"]);
 const STAGE2_SHOW=["mag_cover_thickness","extr_cover_thickness","width_holes","letter_thickness","label_scale","Tray_short_radii","Tray_long_radii"]; // lc (mesh density) hidden
 const TASKS={
-  grad_solve:{label:"Grad build+solve",stages:"optim_grad,run_grad",opt:"grad",
+  // `post` = stages that follow automatically: export the shim CSV (the seam into Stage 2) + draw the layout figure.
+  grad_solve:{label:"Grad build+solve",stages:"optim_grad,run_grad",opt:"grad",post:c=>"export,layout",
     params:c=>["grad_data_term",...(c.grad_data_term==="softrange"?["grad_softrange_beta"]:[]),"grad_lambda","grad_seeds"]},
   grad_lcurve:{label:"Grad L-curve",stages:"optim_grad,grad_lcurve",opt:"grad",
     params:c=>["grad_data_term",...(c.grad_data_term==="softrange"?["grad_softrange_beta"]:[]),"grad_lambda_sweep","grad_seeds"]},
-  sa_opt:{label:"SA optimize",stages:"sa",opt:"sim_annealing",
+  sa_opt:{label:"SA optimize",stages:"sa",opt:"sim_annealing",post:c=>"export,layout",
     params:c=>["lambda_weight","test_ring_seq","SA_T0","SA_alpha","SA_iters","SA_restarts","SA_step0","SA_step_min","mode","w"]},
   sa_lcurve:{label:"SA L-curve",stages:"sa_lcurve",opt:"sim_annealing",
     params:c=>["sweep_xkey","sweep_values","sweep_seeds","SA_T0","SA_alpha","SA_iters","SA_restarts","SA_step0","SA_step_min"]},
-  ring_search:{label:"Ring search (best n)",stages:"ring_search",opt:"grad",
+  ring_search:{label:"Ring search (best n)",stages:"ring_search",opt:"grad",post:c=>c.ring_search_apply?"export,layout":"",
     params:c=>["ring_search_n","ring_search_method","ring_search_range","ring_search_min_spots_between","ring_search_apply",
                "grad_data_term",...(c.grad_data_term==="softrange"?["grad_softrange_beta"]:[])]},
-  insert_search:{label:"Insert search (per-slot)",stages:"insert_search",opt:"grad",
+  insert_search:{label:"Insert search (per-slot)",stages:"insert_search",opt:"grad",post:c=>c.insert_search_apply?"layout":"",   // it writes its own sparse CSV
     params:c=>["magnets_available","insert_search_range","insert_search_min_spots_between","insert_search_max_inserts","insert_search_apply",
                "grad_data_term",...(c.grad_data_term==="softrange"?["grad_softrange_beta"]:[])]},
 };
@@ -319,8 +328,6 @@ const DESC={
   tray_slot_spacing_mm:"Axial gap between neighbouring trays (mm). Constant all the way out from z=0.",
   front_tray_shift_mm:"Distance from true z=0 to tray −1, the FRONT (−Z, gaussmeter) end (mm).",
   back_tray_shift_mm:"Distance from true z=0 to tray +1, the BACK (+Z, wall) end (mm).",
-  positions_in_tray_occupied:"Rings already filled with magnets (skipped).",
-  positions_in_tray_new_wished:"Ring (tray) positions to place magnets at.",
   Rmin:"Inner radius of the scored homogeneity shell (mm).",
   Rmax:"Outer radius of the scored homogeneity shell (mm).",
   magnet_Br_T:"Remanence of ONE shim magnet (T) — a material property from the datasheet or your measurement setup, independent of size.",
@@ -505,6 +512,7 @@ function collectInputs(strict){
   if(me&&me.value)config.measured_fieldmap_name=me.value.replace(/ \(missing\)$/,'');
   const vm=document.getElementById('verifier-meas');
   if(vm&&vm.options.length)config.verifier_measurement=vm.value.replace(/ \(missing\)$/,'');
+  const pl=document.getElementById('placedlist');if(pl&&pl.dataset.ready==='1')config.placed_shim_csvs=tickedPlaced();
   const oe=document.getElementById('osii');
   if(oe&&oe.value)config.osii_input_name=oe.value.replace(/ \(missing\)$/,'');
   const it=document.getElementById('iter-top');if(it&&it.value.trim())config.iteration=it.value.trim();
@@ -560,7 +568,7 @@ function renderAll(){
   fill('geofields',GEO_KEYS);
   // Live-update the ring-placement table as the tray geometry is typed, so you can
   // see where each printed ring lands before committing to a run.
-  ['tray_slot_spacing_mm','front_tray_shift_mm','back_tray_shift_mm','positions_in_tray_new_wished'].forEach(k=>{
+  ['tray_slot_spacing_mm','front_tray_shift_mm','back_tray_shift_mm'].forEach(k=>{
     const e=document.getElementById('f_'+k);
     if(e)e.addEventListener('input',ev=>{try{config[k]=readInput(config[k],ev.target);renderRingPlacement();}catch(_){}});
   });
@@ -604,7 +612,7 @@ function populatePresets(){
 }
 function applyPreset(cat,selId){
   const name=document.getElementById(selId).value;const p=(presets[cat]||{})[name];if(!p)return;
-  collectInputs(false);Object.assign(config,p);renderAll();toast('Applied '+name+' — Save or Run to apply','ok');
+  collectInputs(false);const q={...p};HIDDEN_KEYS.forEach(k=>delete q[k]);Object.assign(config,q);renderAll();toast('Applied '+name+' — Save or Run to apply','ok');
 }
 async function saveAsPreset(cat,keys){
   const name=prompt('New preset name:');if(!name)return;
@@ -639,26 +647,50 @@ async function loadPlacement(){
 async function loadAll(){
   config=await api('/api/config');
   try{presets=await api('/api/presets');}catch(e){presets={geometry:{},stage2:{}};}
-  populatePresets();renderAll();await loadMeasured();await loadOsii();await loadPlacement();
+  populatePresets();renderAll();await loadMeasured();await loadOsii();await loadPlaced();await loadPlacement();
 }
 async function saveConfig(){
   collectInputs(true);
   const j=await api('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)});
-  config=j.config;renderAll();await loadMeasured();await loadOsii();return j;
+  config=j.config;renderAll();await loadMeasured();await loadOsii();await loadPlaced();return j;
 }
-async function importCsv(){
-  const src=document.getElementById('importpath').value.trim();if(!src){toast('Enter a file path first','err');return;}
-  try{const j=await api('/api/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({src})});
-    await loadMeasured();document.getElementById('measured').value=j.name;document.getElementById('importpath').value='';
-    toast('Imported '+j.name,'ok');
-  }catch(e){toast('Import failed: '+e.message,'err');}
+// --- file pickers: the browser's native "select file" dialog; the file CONTENT is uploaded (a browser never
+//     reveals the full path), and the server stores it in the right data folder.
+async function uploadFiles(kind,files){
+  const names=[];
+  for(const f of files){
+    const r=await fetch('/api/upload?kind='+kind+'&name='+encodeURIComponent(f.name),{method:'POST',headers:{'Content-Type':'text/csv'},body:await f.arrayBuffer()});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||j.error)throw new Error(f.name+': '+(j.error||('HTTP '+r.status)));
+    names.push(j.name);
+  }
+  return names;
 }
-async function importOsii(){
-  const src=document.getElementById('osii-importpath').value.trim();if(!src){toast('Enter a file path first','err');return;}
-  try{const j=await api('/api/import_osii',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({src})});
-    await loadOsii();document.getElementById('osii').value=j.name;document.getElementById('osii-importpath').value='';
-    toast('Imported '+j.name,'ok');
-  }catch(e){toast('Import failed: '+e.message,'err');}
+function wirePicker(btnId,inputId,kind,after){
+  const btn=document.getElementById(btnId),inp=document.getElementById(inputId);
+  btn.onclick=()=>inp.click();
+  inp.onchange=async()=>{const files=[...inp.files];inp.value='';if(!files.length)return;
+    try{const names=await uploadFiles(kind,files);await after(names);toast('Imported '+names.join(', '),'ok');}
+    catch(e){toast('Import failed: '+e.message,'err');}};
+}
+function tickedPlaced(){const b=document.getElementById('placedlist');return b?[...b.querySelectorAll('input:checked')].map(i=>i.value):[];}
+function updatePlacedSummary(){
+  const n=Array.isArray(config.placed_shim_csvs)?config.placed_shim_csvs.length:0;
+  const e=document.getElementById('placedsummary');if(e)e.innerHTML=n?('<b>'+n+'</b> shim CSV'+(n===1?'':'s')+' marked as already placed.'):'None placed.';
+}
+async function loadPlaced(){
+  const box=document.getElementById('placedlist');if(!box)return;
+  const j=await api('/api/placed');
+  const sel=new Set(Array.isArray(config.placed_shim_csvs)?config.placed_shim_csvs:j.selected);
+  box.innerHTML='';
+  if(!j.files.length&&!sel.size)box.innerHTML='<span class="hint">No shim CSVs added yet — none placed.</span>';
+  const add=(f,missing)=>{const l=document.createElement('label'),c=document.createElement('input');
+    c.type='checkbox';c.value=f;c.checked=sel.has(f);
+    c.onchange=()=>{config.placed_shim_csvs=tickedPlaced();updatePlacedSummary();};
+    l.appendChild(c);l.appendChild(document.createTextNode(' '+f+(missing?' (missing)':'')));box.appendChild(l);};
+  j.files.forEach(f=>add(f,false));
+  [...sel].filter(f=>!j.files.includes(f)).forEach(f=>add(f,true));      // ticked but gone: stays visible so it can be unticked
+  box.dataset.ready='1';config.placed_shim_csvs=tickedPlaced();updatePlacedSummary();
 }
 async function openFolder(which){try{await api('/api/open_folder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({which})});}catch(e){toast('Open failed: '+e.message,'err');}}
 
@@ -693,17 +725,18 @@ async function runSeq(csv){
   finally{setBusy(false);try{await loadAll();}catch(_){}}   // reflect applied changes (e.g. ring search)
 }
 function runStage0(){runSeq(config.eval_domain==='shell'?'adapter_shell':config.field_adapter==='spherical_harmonics'?'adapter_sh':'adapter_reshape');}
-function runStage1(){collectInputs(false);config.optimizer=TASKS[state.task].opt;runSeq(TASKS[state.task].stages);}
+function runStage1(){collectInputs(false);const t=TASKS[state.task];config.optimizer=t.opt;const post=t.post?t.post(config):'';runSeq(t.stages+(post?','+post:''));}
 
 document.getElementById('save').onclick=()=>saveConfig().then(()=>toast('Saved config.toml','ok')).catch(e=>toast('Save failed: '+e.message,'err'));
 document.getElementById('reload').onclick=()=>loadAll().then(()=>toast('Reloaded','ok'));
-document.getElementById('importbtn').onclick=importCsv;
+wirePicker('importbtn','importfile','measured',async names=>{config.measured_fieldmap_name=names[0];await loadMeasured();document.getElementById('measured').value=names[0];});
+wirePicker('placedbtn','placedfile','placed',async names=>{config.placed_shim_csvs=[...new Set([...tickedPlaced(),...names])];await loadPlaced();});
 document.getElementById('clearlog').onclick=()=>document.getElementById('log').textContent='';
 document.getElementById('stopbtn').onclick=async()=>{stopReq=true;document.getElementById('runstatus').innerHTML='<span class="spin">■ stopping…</span>';try{await api('/api/stop',{method:'POST'});}catch(e){}};
 document.getElementById('run-stage0').onclick=runStage0;
 document.getElementById('run-stage1').onclick=runStage1;
-document.getElementById('run-osii').onclick=()=>runSeq('osii');
-document.getElementById('osii-importbtn').onclick=importOsii;
+document.getElementById('run-osii').onclick=()=>runSeq('osii,layout');
+wirePicker('osii-importbtn','osii-importfile','osii',async names=>{config.osii_input_name=names[0];await loadOsii();document.getElementById('osii').value=names[0];});
 document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openFolder(b.dataset.open));
 document.querySelectorAll('[data-run]').forEach(b=>b.onclick=()=>runSeq(b.dataset.run));
 document.querySelectorAll('[data-apply]').forEach(b=>b.onclick=()=>applyPreset(b.dataset.apply,b.dataset.apply==='geometry'?'geopreset':'s2preset'));

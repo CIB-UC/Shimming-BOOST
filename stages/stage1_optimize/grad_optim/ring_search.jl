@@ -39,10 +39,31 @@ const CONFIGTOML = joinpath(ROOT, "config.toml")
 
 # --- candidate rings (integer tray numbers), 0 excluded ----------------------
 const lo, hi   = ring_search_range[1], ring_search_range[2]
-const candidates = [t for t in lo:ring_search_step:hi if t != 0 && !(t in positions_in_tray_occupied)]   # occupied rings are never candidates
-isempty([t for t in lo:ring_search_step:hi if t in positions_in_tray_occupied]) ||
-    println("Occupied rings excluded from the candidates: ", [t for t in lo:ring_search_step:hi if t in positions_in_tray_occupied])
+const candidates = [t for t in lo:ring_search_step:hi if t != 0]
 const Ncand    = length(candidates)
+
+# --- inserts ALREADY placed in the magnet (config placed_shim_csvs; GUI: Measured data → Already placed shims) ---
+# The scan already includes them. A ring is a whole 12-tray block, so a ring that holds ANY placed insert is not a
+# candidate, nor is a ring closer than ring_search_min_spots_between empty slots to one (|a−b|−1, as for pairs of
+# new rings). The cached ring operator is untouched (candidates stay the full range), so changing what is placed
+# never forces a GPU rebuild — ineligible rings are simply skipped when the search picks sets.
+include(joinpath(@__DIR__, "..", "..", "..", "core", "utils", "placed_shims.jl"))
+include(joinpath(@__DIR__, "..", "..", "..", "core", "utils", "viewer_frame.jl"))   # read_field_direction
+const PLACED = let
+    sdir = nothing
+    if shim_csv_frame == "scan" && !isempty(placed_shim_paths)
+        sdir = read_field_direction(shell_fieldmap_path, fieldmap_path)
+        sdir === nothing && main_field_direction != "auto" && (sdir = main_field_direction)
+    end
+    load_placed_inserts(placed_shim_paths; num_trays = num_trays, mags_per_segment = mags_per_segment,
+                        tray_slot_spacing_mm = tray_slot_spacing_mm, front_tray_shift_mm = front_tray_shift_mm,
+                        back_tray_shift_mm = back_tray_shift_mm, csv_frame = shim_csv_frame, scan_dir = sdir)
+end
+const RING_OK  = Bool[!ring_blocked(t, PLACED, ring_search_min_spots_between) for t in candidates]
+const ELIG_IDX = findall(RING_OK)                           # candidate indices a new ring may use
+const Nelig    = length(ELIG_IDX)
+Nelig >= 1 || error("ring search: every candidate ring is blocked by the already-placed shims " *
+                    "(rings $(placed_rings(PLACED))) — widen ring_search_range or lower ring_search_min_spots_between.")
 const cand_z   = [ringpos_from_tray_mm([t]; tray_slot_spacing_mm = tray_slot_spacing_mm,
                                             front_tray_shift_mm  = front_tray_shift_mm,
                                             back_tray_shift_mm   = back_tray_shift_mm)[1]
@@ -65,7 +86,7 @@ const SIG = string((candidates, shim_radius_mm, mags_per_segment, num_trays,
 # Uses only that ring's magnets (small m) → cost O(Ngrid·mpr) per column.
 # ---------------------------------------------------------------------------
 function ring_columns(t)
-    pos = positions_from_rings_mm([t]; occupied_trays = positions_in_tray_occupied,
+    pos = positions_from_rings_mm([t];
               shim_radius_mm = shim_radius_mm, mags_per_segment = mags_per_segment,
               num_segments = num_trays, angle_per_segment_deg = angle_per_segment_deg,
               angular_offset_deg = angular_offset_deg,
@@ -176,7 +197,8 @@ end
 #     (spots between trays a,b = |a−b|−1), so "3 or fewer spots" ⇒ rejected.
 pair_ok(i, j) = abs(cand_z[i] - cand_z[j]) >= ring_search_min_sep &&
                 (abs(candidates[i] - candidates[j]) - 1) >= ring_search_min_spots_between
-set_ok(idxs) = all(p -> all(q -> p >= q || pair_ok(idxs[p], idxs[q]), eachindex(idxs)), eachindex(idxs))
+set_ok(idxs) = all(i -> RING_OK[i], idxs) &&
+               all(p -> all(q -> p >= q || pair_ok(idxs[p], idxs[q]), eachindex(idxs)), eachindex(idxs))
 
 const SEEDS_SEARCH = first(grad_seeds):first(grad_seeds)     # 1 seed while ranking (unimodal)
 const SEEDS_FINAL  = grad_seeds                              # multistart for the reported winner
@@ -194,13 +216,13 @@ budget_cap = ring_search_magnet_budget > 0 ? fld(ring_search_magnet_budget, MPR)
 const PAIRED = ring_search_method === :paired
 PAIRED && isodd(n_req) &&
     error("ring_search_method = \"paired\" needs an EVEN ring_search_n (rings come in ±pairs); got $(n_req).")
-const PAIR_MAGS = PAIRED ? paired_magnitudes(candidates) : Int[]
+const PAIR_MAGS = PAIRED ? paired_magnitudes(candidates[ELIG_IDX]) : Int[]      # only rings a new ring may use
 PAIRED && isempty(PAIR_MAGS) &&
     error("paired ring search: no tray has BOTH +a and −a in ring_search_range $(ring_search_range) — use a range symmetric about 0.")
-n_cap = min(n_req, ring_search_n_max, budget_cap, Ncand, PAIRED ? 2 * length(PAIR_MAGS) : typemax(Int))
+n_cap = min(n_req, ring_search_n_max, budget_cap, Nelig, PAIRED ? 2 * length(PAIR_MAGS) : typemax(Int))
 PAIRED && isodd(n_cap) && (n_cap -= 1)                     # a cap can leave an odd count; drop the unpaired ring
 const n = n_cap
-n < n_req && @warn "n reduced" requested=n_req using n_max=ring_search_n_max budget_cap=budget_cap Ncand=Ncand
+n < n_req && @warn "n reduced" requested=n_req using n_max=ring_search_n_max budget_cap=budget_cap eligible_rings=Nelig
 n >= 1 || error("ring search: n reduced to 0 — check ring_search_n, ring_search_n_max, the magnet budget and the range.")
 
 # baseline (no shims) for reference
@@ -208,6 +230,12 @@ const ppm0 = 1e6 * (maximum(b_shell) - minimum(b_shell)) / mean(b_shell)
 
 println("\n", "="^64)
 println("RING SEARCH   method=$(ring_search_method)   n=$(n)   candidates=$(Ncand)  (trays $(candidates[1])…$(candidates[end]))")
+if isempty(PLACED)
+    println("  already placed: none")
+else
+    println("  already placed: $(length(PLACED)) insert(s) in ring(s) $(placed_rings(PLACED)) from $(join(unique(p.file for p in PLACED), ", "))")
+    println("  → $(Ncand - Nelig) of $(Ncand) candidate rings blocked (occupied or within $(ring_search_min_spots_between) empty slots of a placed ring); $(Nelig) eligible")
+end
 PAIRED && println("  paired: $(n ÷ 2) pair(s) of {−a, +a} chosen from $(length(PAIR_MAGS)) magnitudes (|tray| $(PAIR_MAGS[1])…$(PAIR_MAGS[end]))")
 println("  objective=$(grad_data_term)   min_sep=$(ring_search_min_sep) mm   min_spots=$(ring_search_min_spots_between)   baseline ppm=$(round(ppm0,digits=1))")
 println("="^64)
@@ -216,7 +244,7 @@ println("="^64)
 # GREEDY forward selection
 # ---------------------------------------------------------------------------
 function run_greedy()
-    selected = Int[]; remaining = collect(1:Ncand); trace = NamedTuple[]
+    selected = Int[]; remaining = collect(ELIG_IDX); trace = NamedTuple[]
     for r in 1:n
         bestc = 0; bestp = Inf; bestθ = nothing
         for c in remaining
@@ -240,13 +268,14 @@ end
 # ---------------------------------------------------------------------------
 
 function run_exhaustive()
-    nC = binomial(Ncand, n)
+    nC = binomial(Nelig, n)
     nC > ring_search_max_combos &&
-        error("C($Ncand,$n) = $nC exceeds ring_search_max_combos = $(ring_search_max_combos).\n" *
+        error("C($Nelig,$n) = $nC exceeds ring_search_max_combos = $(ring_search_max_combos).\n" *
               "Use method=\"greedy\", lower ring_search_n, or narrow ring_search_range.")
     println("  scoring $(nC) subsets …")
     best_idx = Int[]; bestp = Inf; results = Tuple{Vector{Int},Float64}[]; cnt = 0
-    for_each_combination(Ncand, n) do idx
+    for_each_combination(Nelig, n) do cidx
+        idx = ELIG_IDX[cidx]                                  # positions among the eligible rings → candidate indices
         set_ok(idx) || return
         p, _ = solve_subset(collect(idx); seeds = SEEDS_SEARCH, g_tol = RANK_GTOL,
                             iterations = RANK_ITERS, GXop = GXR, GYop = GYR, bvec = b_rank)
@@ -273,7 +302,8 @@ function run_paired()
               "Lower ring_search_n, narrow ring_search_range, or raise ring_search_max_combos.")
     println("  scoring up to $(nC) paired sets …")
     best_idx = Int[]; bestp = Inf; results = Tuple{Vector{Int},Float64}[]; cnt = 0; skipped = 0
-    for_each_paired_set(candidates, m) do idx
+    for_each_paired_set(candidates[ELIG_IDX], m) do pidx
+        idx = ELIG_IDX[pidx]                                  # indices into the eligible list → candidate indices
         set_ok(idx) || (skipped += 1; return)
         p, _ = solve_subset(copy(idx); seeds = SEEDS_SEARCH, g_tol = RANK_GTOL,
                             iterations = RANK_ITERS, GXop = GXR, GYop = GYR, bvec = b_rank)

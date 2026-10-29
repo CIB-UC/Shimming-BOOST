@@ -74,7 +74,7 @@ so nothing can drift apart.
 |-------|--------|------|
 | 0 | `Field_data_*` adapters | measured CSV → field map (`.jld2`) |
 | 1 | `sim_annealing_optim/` **or** `grad_optim/` | field map → optimal shim-magnet angles |
-| 1.5 | `export_csv.jl` | optimizer result → shim CSV (`X, Y, RingNumber, Angle`; `RingNumber` = real InsertPos) — the seam |
+| 1.5 | `export_csv.jl`, `layout_plot.jl` | optimizer result → shim CSV (`X, Y, RingNumber, Angle`; `RingNumber` = real InsertPos) — the seam; then the per-ring layout figure (`Layout/<ITER>_optimizer_layout.png/.pdf`) |
 | 2 | `CSV_to_STL.jl` (Gmsh) | shim CSV → per-tray STL + STEP, + the static insert |
 | 3 | `Shimming_magnets_visualizer.jl`, `field_slice_viewer.jl` | 3D magnet/field view, 2D slice + profile; each has a "Save GIF" button |
 | 4 | `python_verifier.jl` → `stages/stage4_verifier/Shimming_verifier/run_verifier.py` | independent **Python/magpylib** re-computation of the shimmed field: ppm, 2D projections, 3D scene, spherical-harmonic pyramids |
@@ -125,6 +125,15 @@ cross-check of the operator `G` (reference run: optimizer predicted 9483 ppm, ve
   `start_stage = 5` (verifier only); or `run_python_verifier = true` to append it to a
   full run. Misalignment-study knobs (remanence spread, measurement/magnet shifts) exist
   on the CLI (`stages/stage4_verifier/python Shimming_verifier/run_verifier.py --help`) but default to 0.
+
+**GUI chaining.** The GUI's "Run optimization" runs the chosen task and then, automatically, the export and the
+layout figure: grad / SA → `export, layout`; ring search → `export, layout` when `ring_search_apply` is on (else
+nothing); insert search → `layout` only (it writes its own sparse CSV); the L-curve tasks → nothing. "Convert
+OSII → shim CSV" is followed by `layout`. `run_pipeline.jl` runs the figure right after Stage 1.5 export. The figure
+reads only the seam CSV (so it works for any layout), takes the B0 arrow from the scan's `field_direction` (or +y when
+`shim_csv_frame = "optimizer"`), and lives in its own environment (`stages/stage1_5_export/layout_env/`, CairoMakie)
+so the pinned CUDA/GLMakie stack is untouched; the script relaunches itself with `--project` set because activating
+that environment inside a running session makes julia recompile Makie on every run.
 
 ### Stage 0 — reading the measurement
 
@@ -285,8 +294,37 @@ block of `G` columns, so it builds the operator once for all candidate rings
   Writes `ring_search.csv` (top 50 sets) + a ranked plot; `ring_search_apply` works as usual.
   Enumeration lives in `grad_optim/ring_combos.jl` (pure, unit-testable).
 - Rejects rings closer than `ring_search_min_spots_between` empty tray spots.
+- **Already-placed shims** (`placed_shim_csvs`, see below): rings that hold a placed insert, or lie within
+  `ring_search_min_spots_between` empty slots of one, are never selected (`RING_OK` / `ELIG_IDX`; greedy,
+  exhaustive and paired all enumerate only eligible rings). The candidate list itself stays the full range so the
+  cached `ring_operator.jld2` is unaffected.
 - Writes CSV + plot; `ring_search_apply` writes the winner into
   `positions_in_tray_new_wished` and saves the standard result so Stage 2 can run.
+
+**Already-placed shims — `placed_shim_csvs` + `core/utils/placed_shims.jl`.** Replaces the old
+`positions_in_tray_occupied` (ring-level, never actually applied; removed). The GUI (Stage 0 → Measured data →
+"Already placed shims") uploads any number of shim CSVs into `data/inputs/Placed_Shims_csv/` and stores the ticked
+names in `placed_shim_csvs` (empty = none). Interpretation **B1**: the scan already includes those shims, so the
+field map is untouched and they only block slots.
+- Formats: seam (`X, Y, RingNumber, Angle`) or xyz (`X, Y, Z, Angle`; InsertPos recovered from Z).
+- Frame: `shim_csv_frame = "scan"` CSVs are rotated scan → optimizer with the scan's B0 direction
+  (`scan_to_opt_xy`, the inverse of what `export_csv.jl` applies) before the tray is derived with `assign_tray`;
+  `"optimizer"` CSVs are used as written. Each magnet → (InsertPos, tray); an insert slot is (ring, tray); partial
+  inserts (≠ `mags_per_segment` magnets) count as fully occupied, with a warning; the same slot in two files is an
+  error.
+- Insert search: `slot_free` = not taken and, in the same tray, at least `insert_search_min_spots_between` empty
+  slots from every placed insert (`insert_slot_blocked`, using the search's own `spots_between`). Ring search: see
+  above (`ring_blocked`, the `|a−b|−1` rule). Neither changes the operator cache; new inserts only are written.
+- `positions_in_tray_new_wished` is now the *managed* ring set of the current solution (written by the searches'
+  apply step, read by setup / export / viewers). It is hidden in the GUI, is never overwritten by a geometry
+  preset, and an empty list makes Grad/SA stop with "run a ring search first".
+- Display (never computed): `read_placed_magnets` feeds the grey placed magnets in `layout_plot.jl` (same frame as the shim CSV)
+  and in `Shimming_magnets_visualizer.jl` (rotated into `viewer_frame` with the scan direction when it differs from
+  `shim_csv_frame`). The slice viewer draws no magnets. The Stage-4 verifier adds only the new `_shim.csv`; placed
+  shims are deliberately excluded (the scan includes them) and a log line says so.
+- Not done: folding the field of placed shims into the base field (scan taken *without* them, "B2").
+- GUI file pickers use the browser's native dialog and upload the file content (`POST /api/upload?kind=…`), since a
+  browser never reveals full paths; server-side the name is reduced to a safe `.csv` basename.
 
 **Insert search ranking mode.** `insert_search.jl` has a local `RANK_FULL_SHELL`
 toggle: `false` ranks every candidate slot cheaply on a ~250-point sub-shell and
@@ -425,6 +463,7 @@ stages/
                                            run_grad_lcurve.jl, ring_search.jl, ring_combos.jl, insert_search.jl
   stage1_5_export/   export_csv.jl     (optimizer result → shim CSV; honours final_state)
                      osii_to_shim.jl   (ALT: OSII layout → shim CSV; skips Stages 0–1)
+                     layout_plot.jl    (shim CSV → per-ring quiver figure, PNG + PDF; own env in layout_env/ with CairoMakie)
   stage2_stl/        CSV_to_STL.jl     (Gmsh geometry)
   stage3_viewers/    Shimming_magnets_visualizer.jl (3D)   field_slice_viewer.jl (slice)
                      (both run field-only when no shim CSV exists)
@@ -563,7 +602,7 @@ field +x → θ = 2φ, field +y → θ = 2φ − 90° (φ = polar angle of the m
 `--slot_center` takes consecutive *real* slots (slot 0 is skipped). Warns if `config.toml`'s geometry
 differs from the chosen preset. To build STLs from such a CSV: put it at
 `data/outputs/Optimizer_Output_per_Iteration/<ITER>/<ITER>_shim.csv` under a **new** iteration name and click
-**Build STL** (never "Export shim CSV" — it needs an optimizer result and would overwrite it).
+**Build STL** (never re-run the export on it — export needs an optimizer result and would overwrite it).
 
 ### Known gaps vs. the Shimmer / OSII² preprint (arXiv 2608.22351; reviewed, NOT implemented)
 
@@ -571,7 +610,7 @@ A read-through of the "Shimmer" preprint against these docs (not against the cod
 important first:
 1. **No measure → install → re-measure loop.** Shimmer iterates 3–6 times and loads the existing shim
    configuration; here a run is one-shot and nothing handles a field map measured *with* shims installed
-   (subtract/freeze installed magnets, exclude occupied slots). The ~9.5k-ppm result is not an end state.
+   (subtract/freeze installed magnets, exclude occupied slots) — *partly addressed*: `placed_shim_csvs` now blocks occupied slots when the scan includes the placed shims. The ~9.5k-ppm result is not an end state.
 2. **Model ≠ reality, and Stage 4 only checks model vs model.** Paper: predicted vs measured total ppm
    matched (21,225 vs 21,295) but point-by-point error was up to 3,522 ppm. Their 1000-ppm tolerances for
    shims: rotation ≤ 2°, position ≤ 3 mm, Br ≤ 3 %. Here one global `magnet_Br_T`, cube side tolerance

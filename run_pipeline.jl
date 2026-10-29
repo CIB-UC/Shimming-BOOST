@@ -174,6 +174,7 @@ if start <= 1
     end
 end
 start <= 2 && run_stage("Stage 1.5 Export shim CSV",        joinpath("stages", "stage1_5_export", "export_csv.jl"); expect_file = shim_csv_path)
+start <= 2 && run_stage("Stage 1.5 Layout figure",          joinpath("stages", "stage1_5_export", "layout_plot.jl"); expect_file = layout_png_path)
 start <= 3 && run_stage("Stage 2   CSV → per-tray STL/STEP", joinpath("stages", "stage2_stl", "CSV_to_STL.jl"))
 
 nstl = count_stls(final_iteration_dir)
